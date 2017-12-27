@@ -219,7 +219,10 @@ class DestIPFoundHook extends Hook {
 
       if(ips.length > 0) {
 
-        let promises = ips.map(ip => ({ip, intel: this.processIP(ip)}));
+        let promises = ips.map(ip =>
+          async ({ip,
+            intel: await(this.processIP(ip))
+          }));
 
         let result = await (Promise.all(promises));
 
