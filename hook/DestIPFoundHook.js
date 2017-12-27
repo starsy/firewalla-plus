@@ -219,10 +219,15 @@ class DestIPFoundHook extends Hook {
 
         let promises = ips.map((ip) => this.processIP(ip));
 
-        await (Promise.all(promises));
+        let result = await (Promise.all(promises));
+
+        log.info("Result: ", result, {});
 
         let args = [IP_SET_TO_BE_PROCESSED];
+        log.info("Inti Args: ", args, {});
         args.push.apply(args, ips);
+
+        log.info("Args: ", args, {});
 
         await (rclient.zremAsync(args));
 
