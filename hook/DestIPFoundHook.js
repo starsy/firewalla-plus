@@ -64,7 +64,7 @@ class DestIPFoundHook extends Hook {
   }
 
   appendNewIP(ip) {
-    log.debug("Enqueue new ip for intels", ip, {});
+    log.info("Enqueue new ip for intels", ip, {});
     return rclient.zaddAsync(IP_SET_TO_BE_PROCESSED, 0, ip);
   }
 
@@ -204,14 +204,15 @@ class DestIPFoundHook extends Hook {
       return aggrIntelInfo;
 
     })().catch((err) => {
-      log.error(`Failed to process IP ${ip}, error: ${err}`);
+      log.error(`Failed to process IP ${ip}, error: ${err}, add back to discovery queue`);
+      this.appendNewIP(ip);
       return null;
     })
   }
 
   job() {
     return async(() => {
-      log.debug("Checking if any IP Addresses pending for intel analysis...")
+      log.info("Checking if any IP Addresses pending for intel analysis...")
 
       let ips = await (rclient.zrangeAsync(IP_SET_TO_BE_PROCESSED, 0, ITEMS_PER_FETCH));
 
@@ -226,7 +227,7 @@ class DestIPFoundHook extends Hook {
 
         await (rclient.zremAsync(args));
 
-        log.debug(ips.length + "IP Addresses are analyzed with intels");
+        log.info(ips.length + " IP Addresses are analyzed with intels");
 
       } else {
         // log.info("No IP Addresses are pending for intels");
