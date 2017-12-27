@@ -39,6 +39,7 @@ let IntelTool = require('../net2/IntelTool');
 let intelTool = new IntelTool();
 
 let flowUtil = require('../net2/FlowUtil.js');
+const util = require('util');
 
 let IP_SET_TO_BE_PROCESSED = "ip_set_to_be_processed";
 
@@ -171,7 +172,7 @@ class DestIPFoundHook extends Hook {
         }
       }
 
-      log.info("Found new IP " + ip + ", checking intels...");
+      log.info("Checking intels for IP: " + ip);
 
       let sslInfo = await (intelTool.getSSLCertificate(ip));
       let dnsInfo = await (intelTool.getDNS(ip));
@@ -202,10 +203,12 @@ class DestIPFoundHook extends Hook {
         await (intelTool.addIntel(ip, aggrIntelInfo, this.config.intelExpireTime));
       }
 
+      log.info("Check intel successful for IP " + ip);
+
       return aggrIntelInfo;
 
     })().catch((err) => {
-      log.error(`Failed to process IP ${ip}, error: ${err}, add back to discovery queue`, err, {});
+      log.error(`Failed to process IP ${ip}, error: ${err}, push back to intel queue`);
       this.appendNewIP(ip);
       return null;
     })
@@ -219,20 +222,30 @@ class DestIPFoundHook extends Hook {
 
       if(ips.length > 0) {
 
-        let result = ips.map(ip => ({ip, intel: await(this.processIP(ip))}) );
+        //let result = Promise.map(ips, ip => ({ip, intel: await(this.processIP(ip))}), {concurrency: 5} );
+
+        let result = await (Promise.map(ips,
+            async (ip => {
+              const intel = await (this.processIP(ip));
+              return new Promise((resolve, reject) => resolve({ip, intel}));
+            }),
+            {concurrency: 5}));
 
         await (Promise.all(result.map(o => o.intel)));
 
-        log.info("Result: ", result, {});
+        log.info("Result: ", util.inspect(result, {depth: 10}), {});
 
         let args = [IP_SET_TO_BE_PROCESSED];
 
         const ipsWithIntel = result.filter(o => o.intel);
-        args.push(...ipsWithIntel.map(o => o.ip));
-        //args.push.apply(args, ips);
-        log.info("Args: ", args, {});
+        log.info("IP has intel: ", util.inspect(ipsWithIntel, {depth: 10}));
 
-        await (rclient.zremAsync(args));
+        if (ipsWithIntel.length > 0) {
+          args.push(...ipsWithIntel.map(o => o.ip));
+          //args.push.apply(args, ips);
+          log.info("Args: ", args, {});
+          await (rclient.zremAsync(args));
+        }
 
         const total = ips.length;
         const cached = ipsWithIntel.filter(o => o.intel.cached).length;
