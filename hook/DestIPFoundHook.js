@@ -165,8 +165,9 @@ class DestIPFoundHook extends Hook {
       if(!skipRedisUpdate && !forceRedisUpdate) {
         let result = await (intelTool.intelExists(ip));
 
-        if(result) {
-          return;
+        if (result) {
+          result.cached = true;
+          return result;
         }
       }
 
@@ -211,28 +212,39 @@ class DestIPFoundHook extends Hook {
 
   job() {
     return async(() => {
+<<<<<<< HEAD
       log.debug("Checking if any IP Addresses pending for intel analysis...")
 
+=======
+>>>>>>> a1b6326... add stats for ip failed intel checking, add them back into discovery
       let ips = await (rclient.zrangeAsync(IP_SET_TO_BE_PROCESSED, 0, ITEMS_PER_FETCH));
+
+      log.info(`There are ${ips.length} IP Addresses pending for intel analysis, checking...`);
 
       if(ips.length > 0) {
 
-        let promises = ips.map((ip) => this.processIP(ip));
+        let promises = ips.map(ip => ({ip, intel: this.processIP(ip)}));
 
         let result = await (Promise.all(promises));
 
         log.info("Result: ", result, {});
 
         let args = [IP_SET_TO_BE_PROCESSED];
-        log.info("Inti Args: ", args, {});
-        args.push.apply(args, ips);
 
-        log.info("Args: ", args, {});
+        const ipsWithIntel = result.filter(o => o.intel);
+        args.push(...ipsWithIntel.map(o => o.ip));
+        //args.push.apply(args, ips);
 
         await (rclient.zremAsync(args));
 
-        log.debug(ips.length + "IP Addresses are analyzed with intels");
+        const total = ips.length;
+        const cached = ipsWithIntel.filter(o => o.intel.cached).length;
+        const success = ipsWithIntel.length;
 
+        log.info(`Analyzed ${total} IP Addresses for intels, ${success} successful, ${cached} is cached, ${total - success} failed`);
+
+        // add failed ip back into discover queue
+        result.filter(o => !o.intel).forEach(o => this.appendNewIP(o.ip));
       } else {
         // log.info("No IP Addresses are pending for intels");
       }
