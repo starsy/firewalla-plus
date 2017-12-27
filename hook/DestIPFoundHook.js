@@ -205,7 +205,7 @@ class DestIPFoundHook extends Hook {
       return aggrIntelInfo;
 
     })().catch((err) => {
-      log.error(`Failed to process IP ${ip}, error: ${err}, add back to discovery queue`);
+      log.error(`Failed to process IP ${ip}, error: ${err}, add back to discovery queue`, err, {});
       this.appendNewIP(ip);
       return null;
     })
@@ -219,12 +219,9 @@ class DestIPFoundHook extends Hook {
 
       if(ips.length > 0) {
 
-        let promises = ips.map(ip =>
-          async ({ip,
-            intel: await(this.processIP(ip))
-          }));
+        let result = ips.map(ip => ({ip, intel: await(this.processIP(ip))}) );
 
-        let result = await (Promise.all(promises));
+        await (Promise.all(result.map(o => o.intel)));
 
         log.info("Result: ", result, {});
 
@@ -233,6 +230,7 @@ class DestIPFoundHook extends Hook {
         const ipsWithIntel = result.filter(o => o.intel);
         args.push(...ipsWithIntel.map(o => o.ip));
         //args.push.apply(args, ips);
+        log.info("Args: ", args, {});
 
         await (rclient.zremAsync(args));
 
@@ -243,7 +241,10 @@ class DestIPFoundHook extends Hook {
         log.info(`Analyzed ${total} IP Addresses for intels, ${success} successful, ${cached} is cached, ${total - success} failed`);
 
         // add failed ip back into discover queue
-        result.filter(o => !o.intel).forEach(o => this.appendNewIP(o.ip));
+        const ipsFail = result.filter(o => !o.intel);
+        log.info("Failed IP list:", ipsFail, {});
+        ipsFail.forEach(o => this.appendNewIP(o.ip));
+
       } else {
         // log.info("No IP Addresses are pending for intels");
       }
