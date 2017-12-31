@@ -6,7 +6,8 @@ After=network.target
 User=pi
 Restart=always
 WorkingDirectory=/home/pi/firewalla/
-ExecStart=/bin/sh /home/pi/firewalla/extension/dnsmasq/dnsmasq-local.sh
+ExecStartPre=/home/pi/firewalla/extension/dnsmasq/dnsmasq-local-pre.sh
+ExecStart=/home/pi/firewalla/extension/dnsmasq/dnsmasq-local.sh
 
 [Install]
 WantedBy=multi-user.target
