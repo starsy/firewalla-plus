@@ -146,7 +146,7 @@ module.exports = class DNSMASQ {
     fs.writeFileSync(dnsmasqResolvFile, config);
     callback(null);
 
-    setTimeout(this.updateResolvConf(), 5000);
+    setTimeout(function() { this.updateResolvConf() }, 20000);
   }
 
   updateFilter(force, callback) {
