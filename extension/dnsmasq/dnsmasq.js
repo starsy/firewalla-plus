@@ -139,14 +139,21 @@ module.exports = class DNSMASQ {
     let entries = nameservers.filter(x => x && !(x.trim().match(/^127\.|^::1|^localhost/)))
                              .map((nameserver) => "nameserver " + nameserver);
 
-    log.info("In updateResolvConf(), nameserver entries: ", entries, {});
 
     let config = entries.join('\n');
     config += "\n";
-    fs.writeFileSync(dnsmasqResolvFile, config);
+
+    if (this.oldResolvConf === config) {
+      log.info("In updateResolvConf(), no update, skip");
+    } else {
+      log.info("In updateResolvConf(), nameserver entries: ", entries, {});
+      fs.writeFileSync(dnsmasqResolvFile, config);
+      this.oldResolvConf = config;
+    }
+
     callback(null);
 
-    setTimeout(function() { this.updateResolvConf() }, 20000);
+    setTimeout(this.updateResolvConf.bind(this), 20000);
   }
 
   updateFilter(force, callback) {
