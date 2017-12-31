@@ -136,7 +136,9 @@ module.exports = class DNSMASQ {
       nameservers = [DEFAULT_DNS_SERVER];  // use google dns by default, should not reach this code
     }
 
-    let entries = nameservers.filter(x => x && x.trim().match(/^127\.|::1|localhost/)).map((nameserver) => "nameserver " + nameserver);
+    let entries = nameservers.filter(x => x && !(x.trim().match(/^127\.|^::1|^localhost/)))
+                             .map((nameserver) => "nameserver " + nameserver);
+
     let config = entries.join('\n');
     config += "\n";
     fs.writeFileSync(dnsmasqResolvFile, config);
