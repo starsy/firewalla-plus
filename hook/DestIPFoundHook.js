@@ -166,8 +166,9 @@ class DestIPFoundHook extends Hook {
       if(!skipRedisUpdate && !forceRedisUpdate) {
         let result = await (intelTool.intelExists(ip));
 
-        if(result) {
-          return;
+        if (result) {
+          result.cached = true;
+          return result;
         }
       }
 
@@ -215,9 +216,9 @@ class DestIPFoundHook extends Hook {
 
   job() {
     return async(() => {
-      log.debug("Checking if any IP Addresses pending for intel analysis...")
-
       let ips = await (rclient.zrangeAsync(IP_SET_TO_BE_PROCESSED, 0, ITEMS_PER_FETCH));
+
+      log.info(`There are ${ips.length} IP Addresses pending for intel analysis, checking...`);
 
       if(ips.length > 0) {
 
@@ -246,7 +247,16 @@ class DestIPFoundHook extends Hook {
           await (rclient.zremAsync(args));
         }
 
-        log.debug(ips.length + "IP Addresses are analyzed with intels");
+        const total = ips.length;
+        const cached = ipsWithIntel.filter(o => o.intel.cached).length;
+        const success = ipsWithIntel.length;
+
+        log.info(`Analyzed ${total} IP Addresses for intels, ${success} successful, ${cached} is cached, ${total - success} failed`);
+
+        // add failed ip back into discover queue
+        const ipsFail = result.filter(o => !o.intel);
+        log.info("Failed IP list:", ipsFail, {});
+        ipsFail.forEach(o => this.appendNewIP(o.ip));
 
       } else {
         // log.info("No IP Addresses are pending for intels");
