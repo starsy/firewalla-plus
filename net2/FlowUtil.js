@@ -58,7 +58,7 @@ function hashApp(domain) {
 }
 
 function shortDomainName(domain) {
-    return urlHash.shortUrl(domain,true)
+    return domain;
 }
 
 function dhnameFlow(_flow) {
