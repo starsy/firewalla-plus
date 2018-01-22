@@ -63,5 +63,5 @@ sudo service watchdog stop
 echo "WatchDog Stopped"
 $FIREWALLA_HOME/scripts/fire-ping.sh
 sleep 3 
-sudo service watchdog start
+#sudo service watchdog start
 echo "WatchDog Started"
