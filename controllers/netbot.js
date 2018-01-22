@@ -644,6 +644,7 @@ class netBot extends ControllerBot {
   }
 
   boneMsgHandler(msg) {
+      log.info("Bone Message",JSON.stringify(msg));
       if (msg.type == "MSG" && msg.title) {
           let notifyMsg = {
              title: msg.title,
@@ -654,6 +655,37 @@ class netBot extends ControllerBot {
              data: msg.data
           };
           this.tx2(this.primarygid, "", notifyMsg, data);
+      } else if (msg.type == "CONTROL") {
+          if (msg.control && msg.control === "reboot") {
+              log.error("FIREWALLA REMOTE REBOOT");
+              require('child_process').exec('sync & /home/pi/firewalla/scripts/fire-reboot-normal', (err, out, code) => {
+              });
+          } else if (msg.control && msg.control === "upgrade") {
+              log.error("FIREWALLA REMOTE UPGRADE ");
+              require('child_process').exec('sync & /home/pi/firewalla/scripts/upgrade', (err, out, code) => {
+              });
+          } else if (msg.control && msg.control === "ping") {
+              log.error("FIREWALLA CLOUD PING ");
+          } else if (msg.control && msg.control === "v6on") {
+              require('child_process').exec('sync & touch /home/pi/.firewalla/config/enablev6', (err, out, code) => {
+              });                     
+          } else if (msg.control && msg.control === "v6off") {
+              require('child_process').exec('sync & rm /home/pi/.firewalla/config/enablev6', (err, out, code) => {
+              });                     
+          } else if (msg.control && msg.control === "script") {
+              require('child_process').exec('sync & /home/pi/firewalla/scripts/'+msg.command, (err, out, code) => {
+              });                     
+          } else if (msg.control && msg.control === "raw") {
+              log.error("FIREWALLA CLOUD RAW ");
+              // RAW commands will never / ever be ran on production 
+              if (sysManager.isSystemDebugOn() || !f.isProduction()) {
+                  if (msg.command) {
+                      log.error("FIREWALLA CLOUD RAW EXEC",msg.command);
+                      require('child_process').exec('sync & '+msg.command, (err, out, code) => {
+                      });
+                  }
+              }
+          }
       }
   }
 
@@ -1539,7 +1571,7 @@ class netBot extends ControllerBot {
       return;
     } else if (msg.data.item === "shutdown") {
       log.info("shutdown firewalla in 60 seconds");
-      let task = require('child_process').exec('sudo shutdown -h', (err, out, code) => {
+      let task = require('child_process').exec('sleep 3; sudo shutdown -h now', (err, out, code) => {
         let datamodel = {
           type: 'jsonmsg',
           mtype: 'init',
@@ -2189,10 +2221,6 @@ class netBot extends ControllerBot {
 
   }
 
-    boneMsgHandler(msg) {
-        console.log("Bone Message Received ",msg,msg.type);
-    }
-
   helpString() {
     return "Bot version " + sysManager.version() + "\n\nCli interface is no longer useful, please type 'system reset' after update to new encipher app on iOS\n";
   }
@@ -2222,6 +2250,10 @@ process.on('unhandledRejection', (reason, p)=>{
     msg:msg,
     stack:reason.stack
   },null);
+  setTimeout(() => {
+    require('child_process').execSync("touch /home/pi/.firewalla/managed_reboot")    
+    process.exit(1);
+  }, 1000 * 2);
 });
 
 process.on('uncaughtException', (err) => {
@@ -2233,6 +2265,7 @@ process.on('uncaughtException', (err) => {
     stack: err.stack
   }, null);
   setTimeout(() => {
+    require('child_process').execSync("touch /home/pi/.firewalla/managed_reboot")    
     process.exit(1);
   }, 1000 * 2);
 });

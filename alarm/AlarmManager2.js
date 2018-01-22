@@ -722,6 +722,16 @@ module.exports = class {
             i_type = "mac";
             i_target = alarm["p.device.mac"];
             break;
+          case "ALARM_BRO_NOTICE":
+            if(alarm["p.noticeType"] && alarm["p.noticeType"] == "SSH::Password_Guessing") {
+              i_type = "ip"
+              i_target = alarm["p.dest.ip"]
+            } else {
+              log.error("Unsupported alarm type for blocking: ", alarm, {})
+              callback(new Error("Unsupported alarm type for blocking: " + alarm.type))
+              return
+            }
+            break;
           default:
             i_type = "ip";
             i_target = alarm["p.dest.ip"];
@@ -762,16 +772,16 @@ module.exports = class {
         // add additional info
         switch(i_type) {
         case "mac":
-          p.target_name = alarm["p.device.name"];
+          p.target_name = alarm["p.device.name"] || alarm["p.device.ip"];
           p.target_ip = alarm["p.device.ip"];
           break;
         case "ip":
-          p.target_name = alarm["p.dest.name"];
+          p.target_name = alarm["p.dest.name"] || alarm["p.dest.ip"];
           p.target_ip = alarm["p.dest.ip"];
           break;
         case "dns":
-          p.target_name = alarm["p.dest.name"];
-          p.target_ip = alarm["p.dest.id"];
+          p.target_name = alarm["p.dest.name"] || alarm["p.dest.ip"];
+          p.target_ip = alarm["p.dest.ip"];
           break;
         default:
           break;
@@ -868,6 +878,17 @@ module.exports = class {
           i_type = "mac"; // place holder, not going to be matched by any alarm/policy
           i_target = alarm["p.device.ip"];
           break;
+        case "ALARM_BRO_NOTICE":
+          if(alarm["p.noticeType"] && alarm["p.noticeType"] == "SSH::Password_Guessing") {
+            i_type = "ip"
+            i_target = alarm["p.dest.ip"]
+          } else {
+            log.error("Unsupported alarm type for allowing: ", alarm, {})
+            callback(new Error("Unsupported alarm type for allowing: " + alarm.type))
+            return
+          }
+
+          break;
         default:
           i_type = "ip";
           i_target = alarm["p.dest.ip"];
@@ -913,7 +934,7 @@ module.exports = class {
           break;
         case "ip":
           e["p.dest.ip"] = alarm["p.dest.ip"];
-          e["target_name"] = alarm["p.dest.name"];
+          e["target_name"] = alarm["p.dest.name"] || alarm["p.dest.ip"];
           e["target_ip"] = alarm["p.dest.ip"];
           break;
         case "domain":

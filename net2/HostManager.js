@@ -63,6 +63,8 @@ let await = require('asyncawait/await');
 
 let f = require('./Firewalla.js');
 
+const license = require('../util/license.js')
+
 var alarmManager = null;
 
 var uuid = require('uuid');
@@ -854,13 +856,18 @@ class Host {
     }
 
     identifyDevice(force, callback) {
-        log.debug("HOST:IDENTIFY",this.o.mac);
+        if (this.mgr.type != "server") {
+            if (callback)
+                callback(null, null);
+            return;
+        }
         if (force==false  && this.o._identifyExpiration != null && this.o._identifyExpiration > Date.now() / 1000) {
             log.debug("HOST:IDENTIFY too early", this.o._identifyExpiration);
             if (callback)
                 callback(null, null);
             return;
         }
+        log.info("HOST:IDENTIFY",this.o.mac);
         // need to have if condition, not sending too much info if the device is ...
         // this may be used initially _identifyExpiration
 
@@ -871,6 +878,7 @@ class Host {
             ou: this.o.mac.slice(0,13),
             uuid: flowUtil.hashMac(this.o.mac),
             _ipv4: flowUtil.hashIp(this.o.ipv4),
+            ipv4: this.o.ipv4,
             firstFoundTimestamp: this.o.firstFoundTimestamp,
             lastActiveTimestamp: this.o.lastActiveTimestamp,
             bonjourName: this.o.bonjourName,
@@ -878,12 +886,12 @@ class Host {
             ssdpName: this.o.ssdpName,
             bname: this.o.bname,
             pname: this.o.pname,
+            ua_name : this.o.ua_name,
+            ua_os_name : this.o.ua_os_name,
+            name : this.name()
         };
         if (this.o.deviceClass == "mobile") {
             obj.deviceClass = "mobile";
-            obj.ua_name = this.o.ua_name;
-            obj.ua_os_name = this.o.ua_os_name;
-            obj.name = this.name();
         }
         try {
             this.packageTopNeighbors(60,(err,neighbors)=>{
@@ -1550,6 +1558,9 @@ module.exports = class {
       json.remoteSupportPassword = json.ssh
     }
     json.license = sysManager.license;
+    if(!json.license) {
+        json.license = license.getLicense()
+    }
     json.ept = sysManager.ept;
     if (sysManager.publicIp) {
       json.publicIp = sysManager.publicIp;
@@ -1850,6 +1861,39 @@ module.exports = class {
     // total ip list to migrate
     return Promise.all(ipList.map((ip) => flowManager.migrateFromOldTableForHost(ip)));
   }
+
+    /* 
+     * data here may be used to recover Firewalla configuration 
+     */
+    getCheckInAsync() {
+        return async(() => {
+          let json = {};
+          let requiredPromises = [
+            this.policyDataForInit(json),
+            this.modeForInit(json),
+            this.policyRulesForInit(json),
+            this.exceptionRulesForInit(json),
+            this.natDataForInit(json),
+            this.ignoredIPDataForInit(json),
+          ]
+
+          this.basicDataForInit(json, {});
+
+          await (requiredPromises);
+
+          let firstBinding = await (rclient.getAsync("firstBinding"))
+          if(firstBinding) {
+            json.firstBinding = firstBinding
+          }
+
+          json.bootingComplete = await (f.isBootingComplete())
+
+          // Delete anything that may be private
+          if (json.ssh) delete json.ssh
+
+          return json;
+        })();
+    }
 
     toJson(includeHosts, options, callback) {
 
@@ -2224,7 +2268,7 @@ module.exports = class {
                         }
                     }
                     for (let h in removedHosts) {
-                        delete this.hostsdb[h];
+                        delete this.hostsdb[removedHosts[h]];
                     }
                     log.debug("hostmanager:removing:hosts", removedHosts);
                     this.hosts.all.sort(function (a, b) {
