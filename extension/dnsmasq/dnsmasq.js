@@ -290,7 +290,9 @@ module.exports = class DNSMASQ {
         }
         resolve();
       });
-    }).bind(this));
+    }).bind(this)).catch((err) => {
+      log.error("Got error when reloading dnsmasq:", err, {})
+    });
   }
 
   updateAdblockTmpFilter(force, callback) {
