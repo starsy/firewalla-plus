@@ -4,6 +4,12 @@ const express = require('express');
 const https = require('https');
 const forge = require('node-forge');
 
+let promise = require('bluebird');
+let redis = require('redis');
+let client = redis.createClient();
+
+promise.promisifyAll(redis.RedisClient.prototype);
+
 const port = 80;
 const httpsPort = 443;
 const app = express();
@@ -12,7 +18,10 @@ const httpsOptions = genHttpsOptions();
 app.use('*', (req, res) => {
   let txt = `Ads Blocked by Firewalla: ${req.ip} => ${req.method}: ${req.hostname}${req.originalUrl}`;
   res.send(txt);
-  console.log(txt);
+
+  client.incrAsync('adblock:count').then(value => {
+    console.log(`${txt}, Total blocked: ${value}`);
+  })
 });
 
 app.listen(port, () => console.log(`Httpd listening on port ${port}!`));
