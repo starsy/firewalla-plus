@@ -7,7 +7,6 @@ const forge = require('node-forge');
 let promise = require('bluebird');
 let redis = require('redis');
 let client = redis.createClient();
-
 promise.promisifyAll(redis.RedisClient.prototype);
 
 const port = 80;
@@ -19,16 +18,16 @@ app.use('*', (req, res) => {
   let txt = `Ads Blocked by Firewalla: ${req.ip} => ${req.method}: ${req.hostname}${req.originalUrl}`;
   res.send(txt);
 
-  client.incrAsync('adblock:count').then(value => {
+  client.hincrbyAsync('block:stats', 'adblock', 1).then(value => {
     console.log(`${txt}, Total blocked: ${value}`);
-  })
+  });
 });
 
 app.listen(port, () => console.log(`Httpd listening on port ${port}!`));
 https.createServer(httpsOptions, app).listen(httpsPort, () => console.log(`Httpd listening on port ${httpsPort}!`));
 
 function genHttpsOptions() {
-// generate a keypair and create an X.509v3 certificate
+  // generate a keypair and create an X.509v3 certificate
   const pki = forge.pki;
   console.log('Generating 1024-bit key-pair...');
   const keys = pki.rsa.generateKeyPair(1024);
@@ -65,7 +64,7 @@ function genHttpsOptions() {
   cert.setExtensions([{
     name: 'basicConstraints',
     cA: true/*,
-  pathLenConstraint: 4*/
+    pathLenConstraint: 4*/
   }, {
     name: 'keyUsage',
     keyCertSign: true,
