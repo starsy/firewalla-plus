@@ -200,7 +200,7 @@ module.exports = class DNSMASQ {
       if (this.enabled !== undefined) {
         // already timer running, clear existing one and trigger next round immediately
         clearTimeout(this.nextControlAdblockFilter);
-        setImmediate(this.controlAdblockFilter.bind(this), RELOAD_DELAY, undefined);
+        setImmediate(this.controlAdblockFilter.bind(this), undefined);
         return;
       }
     }
