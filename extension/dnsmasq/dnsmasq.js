@@ -155,7 +155,7 @@ module.exports = class DNSMASQ {
     config += "\n";
 
     if (this.oldResolvConf === config) {
-      log.info("In updateResolvConf(), no update, skip");
+      //log.info("In updateResolvConf(), no update, skip");
     } else {
       log.info("In updateResolvConf(), nameserver entries: ", entries, {});
       fs.writeFileSync(dnsmasqResolvFile, config);
@@ -188,16 +188,18 @@ module.exports = class DNSMASQ {
     });
   }
 
-  controlAdblockFilter(state, retry) {
+  controlAdblockFilter(state) {
     const handleError = function (err, _state) {
       if (!err) { return; }
 
       log.error(`Error when ${_state ? "obtain the lock" : "unlock the lock"}`, err, {});
-      this.nextControlAdblockFilter = setTimeout(this.controlAdblockFilter.bind(this, true), 1000);
+      this.nextControlAdblockFilter = setTimeout(this.controlAdblockFilter.bind(this), RELOAD_DELAY, undefined);
     }.bind(this);
 
-    if (!retry) {
+
+    if (state !== undefined && state !== null) {
       this.nextState.push(state);
+      log.info(`nextState is: ${util.inspect(this.nextState)}`);
     }
 
     lock.lock(lockFile, err => {
@@ -209,9 +211,15 @@ module.exports = class DNSMASQ {
       log.info("--- Obtained lock");
 
       const curState = this.nextState[0];
-      if (curState !== undefined && curState !== null) {
-        this.enabled = curState;
+      if (curState === undefined || curState === null) {
+        this.nextState.shift();
+        lock.unlock(lockFile, err => handleError(err, false));
+        log.info(`--- Released the lock, nextState is: ${util.inspect(this.nextState)}`);
+        this.nextControlAdblockFilter = setTimeout(this.controlAdblockFilter.bind(this), RELOAD_DELAY, undefined);
+        return;
       }
+
+      this.enabled = curState;
 
       log.info(`in control adblock filter: state: ${curState}, this.enabled: ${this.enabled}, this.reloadCount: ${this.reloadCount++}`);
 
@@ -225,12 +233,12 @@ module.exports = class DNSMASQ {
             log.info("Update Adblock filters successful.");
             this.reload()
               .then(() => {
-                this.nextControlAdblockFilter = setTimeout(this.controlAdblockFilter.bind(this), RELOAD_DELAY);
+                this.nextControlAdblockFilter = setTimeout(this.controlAdblockFilter.bind(this), RELOAD_DELAY, undefined);
               })
               .finally(() => {
                 this.nextState.shift();
                 lock.unlock(lockFile, err => handleError(err, false));
-                log.info("--- Released the lock");
+                log.info(`--- Released the lock, nextState is: ${util.inspect(this.nextState)}`);
               });
           }
         });
@@ -248,7 +256,7 @@ module.exports = class DNSMASQ {
           .finally(() => {
             this.nextState.shift();
             lock.unlock(lockFile, err => handleError(err, false));
-            log.info("--- Released the lock");
+            log.info(`--- Released the lock, nextState is: ${util.inspect(this.nextState)}`);
           });
       }
     });
