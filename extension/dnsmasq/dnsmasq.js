@@ -191,6 +191,7 @@ module.exports = class DNSMASQ {
 
       log.error(`Error when ${_state ? "obtain the lock" : "unlock the lock"}`, err, {});
       this.nextControlAdblockFilter = setTimeout(this.controlAdblockFilter.bind(this, _state), RELOAD_DELAY);
+      lock.unlock(lockFile, err => {});
     }.bind(this);
 
     lock.lock(lockFile, {wait: 3000, retries: 5, stale: 50}, err => {
@@ -198,6 +199,8 @@ module.exports = class DNSMASQ {
         handleError(err, true);
         return;
       }
+
+      log.info("--- Obtained lock");
 
       if (state !== undefined && state !== null) {
         this.enabled = state;
@@ -217,7 +220,10 @@ module.exports = class DNSMASQ {
               .then(() => {
                 this.nextControlAdblockFilter = setTimeout(this.controlAdblockFilter.bind(this), RELOAD_DELAY);
               })
-              .finally(() => lock.unlock(lockFile, err => handleError(err, false)));
+              .finally(() => {
+                lock.unlock(lockFile, err => handleError(err, false));
+                log.info("--- Released the lock");
+              });
           }
         });
 
@@ -231,7 +237,10 @@ module.exports = class DNSMASQ {
         this.cleanUpAdblockFilter()
           .then(() => this.reload())
           .catch(err => log.error('Error when clean up adblock filters', err, {}))
-          .finally(() => lock.unlock(lockFile, err => handleError(err, false)));
+          .finally(() => {
+            lock.unlock(lockFile, err => handleError(err, false));
+            log.info("--- Released the lock");
+          });
       }
     });
   }
