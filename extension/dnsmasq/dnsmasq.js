@@ -58,7 +58,7 @@ let dhcpFeature = false;
 
 let FILTER_EXPIRE_TIME = 86400 * 1000;
 
-let BLACK_HOLE_IP="198.51.100.99";
+let BLACK_HOLE_IP=sysManager.myIp();
 
 let DEFAULT_DNS_SERVER = (fConfig.dns && fConfig.dns.defaultDNSServer) || "8.8.8.8";
 
@@ -142,11 +142,24 @@ module.exports = class DNSMASQ {
       nameservers = [DEFAULT_DNS_SERVER];  // use google dns by default, should not reach this code
     }
 
-    let entries = nameservers.map((nameserver) => "nameserver " + nameserver);
+    let entries = nameservers.filter(x => x && !(x.trim().match(/^127\.|^::1|^localhost/)))
+                             .map((nameserver) => "nameserver " + nameserver);
+
+
     let config = entries.join('\n');
     config += "\n";
-    fs.writeFileSync(dnsmasqResolvFile, config);
+
+    if (this.oldResolvConf === config) {
+      log.info("In updateResolvConf(), no update, skip");
+    } else {
+      log.info("In updateResolvConf(), nameserver entries: ", entries, {});
+      fs.writeFileSync(dnsmasqResolvFile, config);
+      this.oldResolvConf = config;
+    }
+
     callback(null);
+
+    setTimeout(this.updateResolvConf.bind(this), 20000);
   }
 
   updateAdblockFilter(force, callback) {

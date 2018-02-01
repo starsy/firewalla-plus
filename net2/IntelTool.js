@@ -60,10 +60,8 @@ class IntelTool {
   intelExists(ip) {
     let key = this.getIntelKey(ip);
 
-    return rclient.existsAsync(key)
-      .then((exists) => {
-        return exists == 1
-      })
+    return rclient.hgetallAsync(key)
+      .then(hash => hash ? hash : null);
   }
 
   appExists(ip) {

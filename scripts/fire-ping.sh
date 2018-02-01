@@ -4,6 +4,7 @@
 #
 # this should deal with /dev/watchdog
 
+sudo touch /dev/watchdog
 mem=0
 
 swapmem=$(free -m | awk '/Swap:/{print $4}')
@@ -59,6 +60,10 @@ else
    exit 0
 fi
 
+<<<<<<< HEAD
+sudo touch /dev/watchdog
+=======
+>>>>>>> master
 /home/pi/firewalla/scripts/firelog -t debug -m "FIREWALLA PING WRITE2"
 
 touch /tmp/watchdog 

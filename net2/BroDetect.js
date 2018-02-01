@@ -36,7 +36,6 @@ const am2 = new AM2();
 const HostManager = require('../net2/HostManager')
 const hostManager = new HostManager('cli', 'server');
 
-
 const async = require('asyncawait/async');
 const await = require('asyncawait/await');
 

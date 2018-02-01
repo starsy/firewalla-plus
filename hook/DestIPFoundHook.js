@@ -39,6 +39,7 @@ let IntelTool = require('../net2/IntelTool');
 let intelTool = new IntelTool();
 
 let flowUtil = require('../net2/FlowUtil.js');
+const util = require('util');
 
 let IP_SET_TO_BE_PROCESSED = "ip_set_to_be_processed";
 
@@ -64,7 +65,7 @@ class DestIPFoundHook extends Hook {
   }
 
   appendNewIP(ip) {
-    log.debug("Enqueue new ip for intels", ip, {});
+    log.info("Enqueue new ip for intels", ip, {});
     return rclient.zaddAsync(IP_SET_TO_BE_PROCESSED, 0, ip);
   }
 
@@ -165,12 +166,13 @@ class DestIPFoundHook extends Hook {
       if(!skipRedisUpdate && !forceRedisUpdate) {
         let result = await (intelTool.intelExists(ip));
 
-        if(result) {
-          return;
+        if (result) {
+          result.cached = true;
+          return result;
         }
       }
 
-      log.info("Found new IP " + ip + ", checking intels...");
+      log.info("Checking intels for IP: " + ip);
 
       let sslInfo = await (intelTool.getSSLCertificate(ip));
       let dnsInfo = await (intelTool.getDNS(ip));
@@ -201,32 +203,60 @@ class DestIPFoundHook extends Hook {
         await (intelTool.addIntel(ip, aggrIntelInfo, this.config.intelExpireTime));
       }
 
+      log.info("Check intel successful for IP " + ip);
+
       return aggrIntelInfo;
 
     })().catch((err) => {
-      log.error(`Failed to process IP ${ip}, error: ${err}`);
+      log.error(`Failed to process IP ${ip}, error: ${err}, push back to intel queue`);
+      this.appendNewIP(ip);
       return null;
     })
   }
 
   job() {
     return async(() => {
-      log.debug("Checking if any IP Addresses pending for intel analysis...")
-
       let ips = await (rclient.zrangeAsync(IP_SET_TO_BE_PROCESSED, 0, ITEMS_PER_FETCH));
+
+      log.info(`There are ${ips.length} IP Addresses pending for intel analysis, checking...`);
 
       if(ips.length > 0) {
 
-        let promises = ips.map((ip) => this.processIP(ip));
+        //let result = Promise.map(ips, ip => ({ip, intel: await(this.processIP(ip))}), {concurrency: 5} );
 
-        await (Promise.all(promises));
+        let result = await (Promise.map(ips,
+            async (ip => {
+              const intel = await (this.processIP(ip));
+              return new Promise((resolve, reject) => resolve({ip, intel}));
+            }),
+            {concurrency: 5}));
+
+        await (Promise.all(result.map(o => o.intel)));
+
+        log.info("Result: ", util.inspect(result, {depth: 10}), {});
 
         let args = [IP_SET_TO_BE_PROCESSED];
-        args.push.apply(args, ips);
 
-        await (rclient.zremAsync(args));
+        const ipsWithIntel = result.filter(o => o.intel);
+        log.info("IP has intel: ", util.inspect(ipsWithIntel, {depth: 10}));
 
-        log.debug(ips.length + "IP Addresses are analyzed with intels");
+        if (ipsWithIntel.length > 0) {
+          args.push(...ipsWithIntel.map(o => o.ip));
+          //args.push.apply(args, ips);
+          log.info("Args: ", args, {});
+          await (rclient.zremAsync(args));
+        }
+
+        const total = ips.length;
+        const cached = ipsWithIntel.filter(o => o.intel.cached).length;
+        const success = ipsWithIntel.length;
+
+        log.info(`Analyzed ${total} IP Addresses for intels, ${success} successful, ${cached} is cached, ${total - success} failed`);
+
+        // add failed ip back into discover queue
+        const ipsFail = result.filter(o => !o.intel);
+        log.info("Failed IP list:", ipsFail, {});
+        ipsFail.forEach(o => this.appendNewIP(o.ip));
 
       } else {
         // log.info("No IP Addresses are pending for intels");
