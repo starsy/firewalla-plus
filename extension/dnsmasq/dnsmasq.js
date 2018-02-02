@@ -62,11 +62,7 @@ let BLACK_HOLE_IP=sysManager.myIp();
 
 let DEFAULT_DNS_SERVER = (fConfig.dns && fConfig.dns.defaultDNSServer) || "8.8.8.8";
 
-let RELOAD_DELAY = 3600 * 12 * 1000; // half day
-
-const lock = require('lockfile')
-const path = require('path');
-const lockFile = path.resolve(dnsFilterDir + '/dnsmasq.lock');
+let RELOAD_INTERVAL = 3600 * 24 * 1000; // one day
 
 module.exports = class DNSMASQ {
   constructor(loglevel) {
@@ -81,8 +77,6 @@ module.exports = class DNSMASQ {
       this.reloadCount = 0;
       this.nextState = undefined;
       this.nextReloadAdblockFilter = [];
-
-      lock.unlock(lockFile, err => {});
 
       process.on('exit', () => {
         this.shouldStart = false;
@@ -194,8 +188,8 @@ module.exports = class DNSMASQ {
       // no need immediate reload when next state not changed during reloading
       this.nextReloadAdblockFilter.forEach(t => clearTimeout(t));
       this.nextReloadAdblockFilter.length = 0;
-      log.info(`schedule next reload in ${RELOAD_DELAY/1000}s`);
-      this.nextReloadAdblockFilter.push(setTimeout(this._reloadAdblockFilter.bind(this), RELOAD_DELAY));
+      log.info(`schedule next reload in ${RELOAD_INTERVAL/1000}s`);
+      this.nextReloadAdblockFilter.push(setTimeout(this._reloadAdblockFilter.bind(this), RELOAD_INTERVAL));
     } else {
       log.warn(`next state changed from ${oldNextState} to ${curNextState} during reload, will reload again immediately`);
       setImmediate(this._reloadAdblockFilter.bind(this));
@@ -433,7 +427,9 @@ module.exports = class DNSMASQ {
   loadFilterFromBone(callback) {
     callback = callback || function() {}
 
-    bone.hashset("ads",(err,data)=>{
+    const listName = f.isProduction() ? `ads` : `ads-dev`;
+
+    bone.hashset(listName, (err,data) => {
       if(err) {
         callback(err);
       } else {
