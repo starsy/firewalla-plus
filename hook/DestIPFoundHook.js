@@ -60,7 +60,7 @@ class DestIPFoundHook extends Hook {
   constructor() {
     super();
 
-    this.config.intelExpireTime = 7 * 24 * 3600; // one week
+    this.config.intelExpireTime = 2 * 24 * 3600; // two days
     this.pendingIPs = {};
   }
 
@@ -92,6 +92,7 @@ class DestIPFoundHook extends Hook {
     if(sslInfo && sslInfo.server_name) {
       intel.host = sslInfo.server_name
       intel.sslHost = sslInfo.server_name
+      intel.org = sslInfo.O
     }
 
     // app
@@ -124,6 +125,10 @@ class DestIPFoundHook extends Hook {
 
       if(info.c) {
         intel.category = info.c;
+      }
+
+      if(info.action && info.action.block) {
+        intel.action = "block"
       }
       //      }
     });
@@ -188,12 +193,6 @@ class DestIPFoundHook extends Hook {
       }
 
       // Update intel dns:ip:xxx.xxx.xxx.xxx so that legacy can use it for better performance
-      if(!skipRedisUpdate) {
-        if(cloudIntelInfo.constructor.name === 'Array' && cloudIntelInfo.length > 0) {
-          await (intelTool.updateIntelKeyInDNS(ip, cloudIntelInfo[0], this.config.intelExpireTime));
-        }
-      }
-
       let aggrIntelInfo = this.aggregateIntelResult(ip, sslInfo, dnsInfo, cloudIntelInfo);
       aggrIntelInfo.country = this.enrichCountry(ip) || ""; // empty string for unidentified country
 
