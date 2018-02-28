@@ -27,14 +27,18 @@ const SysManager = require('./SysManager.js');
 const sysManager = new SysManager('info');
 const DNSManager = require('./DNSManager.js');
 const dnsManager = new DNSManager();
-const AlarmManager = require('./AlarmManager.js');
-const alarmManager = new AlarmManager('info');
 const Alarm = require('../alarm/Alarm.js');
 const AM2 = require('../alarm/AlarmManager2.js');
 const am2 = new AM2();
 
 const HostManager = require('../net2/HostManager')
 const hostManager = new HostManager('cli', 'server');
+
+const HostTool = require('../net2/HostTool.js')
+const hostTool = new HostTool()
+
+const DNSTool = require('../net2/DNSTool.js')
+const dnsTool = new DNSTool()
 
 const async = require('asyncawait/async');
 const await = require('asyncawait/await');
@@ -90,11 +94,11 @@ function ValidateIPaddress(ipaddress)
 
 module.exports = class {
     initWatchers() {
-        log.info("Initializing watchers", this.config.bro);
+        log.debug("Initializing watchers", this.config.bro);
         if (this.intelLog == null) {
             this.intelLog = new Tail(this.config.bro.intel.path, '\n');
             if (this.intelLog != null) {
-                log.info("Initializing watchers: intelog initialized:", this.config.bro.intel.path);
+                log.debug("Initializing watchers: intelog initialized:", this.config.bro.intel.path);
                 this.intelLog.on('line', (data) => {
                     log.debug("Detect:Intel ", data);
                     this.processIntelData(data);
@@ -107,7 +111,7 @@ module.exports = class {
         if (this.noticeLog == null) {
             this.noticeLog = new Tail(this.config.bro.notice.path, '\n');
             if (this.noticeLog != null) {
-                log.info("Initializing watchers: noticeLog initialized", this.config.bro.notice.path);
+                log.debug("Initializing watchers: noticeLog initialized", this.config.bro.notice.path);
                 this.noticeLog.on('line', (data) => {
                     log.debug("Detect:Notice", data);
                     this.processNoticeData(data);
@@ -120,7 +124,7 @@ module.exports = class {
         if (this.dnsLog == null) {
             this.dnsLog = new Tail(this.config.bro.dns.path, '\n');
             if (this.dnsLog != null) {
-                log.info("Initializing watchers: dnslog initialized", this.config.bro.dns.path);
+                log.debug("Initializing watchers: dnslog initialized", this.config.bro.dns.path);
                 this.dnsLog.on('line', (data) => {
                     this.processDnsData(data);
                 });
@@ -132,7 +136,7 @@ module.exports = class {
         if (this.softwareLog == null) {
             this.softwareLog = new Tail(this.config.bro.software.path, '\n');
             if (this.softwareLog != null) {
-                log.info("Initializing watchers: software initialized", this.config.bro.software.path);
+                log.debug("Initializing watchers: software initialized", this.config.bro.software.path);
                 this.softwareLog.on('line', (data) => {
                     log.debug("Detect:Software", data);
                     this.processSoftwareData(data);
@@ -145,7 +149,7 @@ module.exports = class {
         if (this.httpLog == null) {
             this.httpLog = new Tail(this.config.bro.http.path, '\n');
             if (this.httpLog != null) {
-                log.info("Initializing watchers: http initialized", this.config.bro.http.path);
+                log.debug("Initializing watchers: http initialized", this.config.bro.http.path);
                 this.httpLog.on('line', (data) => {
                     log.debug("Detect:Http", data);
                     this.processHttpData(data);
@@ -158,7 +162,7 @@ module.exports = class {
         if (this.sslLog == null) {
             this.sslLog = new Tail(this.config.bro.ssl.path, '\n');
             if (this.sslLog != null) {
-                log.info("Initializing watchers: sslinitialized", this.config.bro.ssl.path);
+                log.debug("Initializing watchers: sslinitialized", this.config.bro.ssl.path);
                 this.sslLog.on('line', (data) => {
                     log.debug("Detect:SSL", data);
                     this.processSslData(data);
@@ -171,7 +175,7 @@ module.exports = class {
         if (this.connLog == null) {
             this.connLog = new Tail(this.config.bro.conn.path, '\n');
             if (this.connLog != null) {
-                log.info("Initializing watchers: connInitialized", this.config.bro.conn.path);
+                log.debug("Initializing watchers: connInitialized", this.config.bro.conn.path);
                 this.connLog.on('line', (data) => {
                     this.processConnData(data);
                 });
@@ -182,7 +186,7 @@ module.exports = class {
         if (this.connLogdev == null) {
             this.connLogdev = new Tail(this.config.bro.conn.pathdev, '\n');
             if (this.connLogdev != null) {
-                log.info("Initializing watchers: connInitialized", this.config.bro.conn.pathdev);
+                log.debug("Initializing watchers: connInitialized", this.config.bro.conn.pathdev);
                 this.connLogdev.on('line', (data) => {
                     this.processConnData(data);
                 });
@@ -194,7 +198,7 @@ module.exports = class {
         if (this.x509Log == null) {
             this.x509Log = new Tail(this.config.bro.x509.path, '\n');
             if (this.x509Log != null) {
-                log.info("Initializing watchers: X509 Initialized", this.config.bro.x509.path);
+                log.debug("Initializing watchers: X509 Initialized", this.config.bro.x509.path);
                 this.x509Log.on('line', (data) => {
                     this.processX509Data(data);
                 });
@@ -206,7 +210,7 @@ module.exports = class {
         if (this.knownHostsLog == null) {
             this.knownHostsLog = new Tail(this.config.bro.knownHosts.path, '\n');
             if (this.knownHostsLog != null) {
-                log.info("Initializing watchers: knownHosts Initialized", this.config.bro.knownHosts.path);
+                log.debug("Initializing watchers: knownHosts Initialized", this.config.bro.knownHosts.path);
                 this.knownHostsLog.on('line', (data) => {
                     this.processknownHostsData(data);
                 });
@@ -241,11 +245,11 @@ module.exports = class {
 
     start() {
         if (this.intelLog) {
-            log.info("Start watching intel log");
+            log.debug("Start watching intel log");
             this.intelLog.watch();
         }
         if (this.noticeLog) {
-            log.info("Start watching notice log");
+            log.debug("Start watching notice log");
             this.noticeLog.watch();
         }
     }
@@ -364,6 +368,12 @@ module.exports = class {
             }
             if (obj["id.resp_p"] == 53 && obj["id.orig_h"] != null && obj["answers"] && obj["answers"].length > 0) {
                 // NOTE write up a look up flow here
+
+                // record reverse dns as well for future reverse lookup
+                async(() => {
+                  await (dnsTool.addReverseDns(obj['query'], obj['answers']))
+                })()
+
                 for (let i in obj['answers']) {
                     let key = "dns:ip:" + obj['answers'][i];
                     let value = {
@@ -1204,6 +1214,10 @@ module.exports = class {
       if(obj["san.dns"] && obj["san.dns"].constructor === Array) {
         obj["san.dns"] = JSON.stringify(obj["san.dns"]);
       }
+
+      if(obj["san.ip"] && obj["san.ip"].constructor === Array) {
+        obj["san.ip"] = JSON.stringify(obj["san.ip"]);
+      }
     }
 
 /*
@@ -1425,7 +1439,7 @@ module.exports = class {
 //                log.error("Notice:Drop My IP", obj);
                 return;
             }
-            log.info("Notice:Processing",obj);
+            log.debug("Notice:Processing",obj);
             if (this.config.bro.notice.ignore[obj.note] == null) {
                 let strdata = JSON.stringify(obj);
                 let key = "notice:" + obj.src;
@@ -1464,60 +1478,52 @@ module.exports = class {
                      obj: obj
                 };
 
-                dnsManager.resolvehost(obj.src,(err,__src)=>{
-                    dnsManager.resolvehost(obj.dst,(err,__dst)=>{
-                      actionobj.shname =dnsManager.name(__src);
-                      actionobj.dhname =dnsManager.name(__dst);
+                async(() => {
+                    const srcName = await (hostTool.getName(obj.src))
+                    const dstName = await (hostTool.getName(obj.dst))
+                    if(srcName) {
+                        actionobj.shname = srcName
+                    }
+                    if(dstName) {
+                        actionobj.dhname = dstName
+                    }
 
-                      let localIP = lh;
-                      let message = obj.msg;
-                      let noticeType = obj.note;
-                      let timestamp = parseFloat(obj.ts);
+                    let localIP = lh;
+                    let message = obj.msg;
+                    let noticeType = obj.note;
+                    let timestamp = parseFloat(obj.ts);
 
-                      // TODO: create dedicate alarm type for each notice type
-                      let alarm = new Alarm.BroNoticeAlarm(timestamp, localIP, noticeType, message, {
-                        "p.device.ip": localIP,
-                        "p.dest.ip": dh
-                      });
+                    // TODO: create dedicate alarm type for each notice type
+                    let alarm = new Alarm.BroNoticeAlarm(timestamp, localIP, noticeType, message, {
+                      "p.device.ip": localIP,
+                      "p.dest.ip": dh
+                    });
 
-                      if(noticeType == 'SSH::Password_Guessing') {
-                        const subMessage = obj.sub
-                        // sub message:
-                        //   Sampled servers:  10.0.1.182, 10.0.1.182, 10.0.1.182, 10.0.1.182, 10.0.1.182
-                        
-                        let addresses = subMessage.replace(/.*Sampled servers:  /, '').split(", ")
-                        addresses = addresses.filter((v, i, array) => {
-                          return array.indexOf(v) === i
-                        })
+                    if(noticeType == 'SSH::Password_Guessing') {
+                      const subMessage = obj.sub
+                      // sub message:
+                      //   Sampled servers:  10.0.1.182, 10.0.1.182, 10.0.1.182, 10.0.1.182, 10.0.1.182
+                      
+                      let addresses = subMessage.replace(/.*Sampled servers:  /, '').split(", ")
+                      addresses = addresses.filter((v, i, array) => {
+                        return array.indexOf(v) === i
+                      })
 
-                        if(addresses.length > 0) {
-                          alarm["p.device.ip"] = addresses[0]
-                          alarm["p.device.name"] = addresses[0] // workaround, app side should use mac address to convert
-                        }
-
-                        alarm["p.message"] = `${alarm["p.message"].replace(/\.$/, '')} on device: ${addresses.join(",")}`
+                      if(addresses.length > 0) {
+                        alarm["p.device.ip"] = addresses[0]
+                        alarm["p.device.name"] = addresses[0] // workaround, app side should use mac address to convert
                       }
 
-                      async(() => {
-                        if(alarm["p.dest.ip"] && alarm["p.dest.ip"] != "0.0.0.0") {
-                          await (am2.enrichDestInfo(alarm))
-                        }
-                        await (am2.enrichDeviceInfo(alarm))
-                        am2.checkAndSave(alarm, (err) => {
-                          if(err) {
-                            log.error("Failed to save alarm: " + err);
-                          }
-                        });
-                      })()
+                      alarm["p.message"] = `${alarm["p.message"].replace(/\.$/, '')} on device: ${addresses.join(",")}`
+                    }
 
-                      alarmManager.alarm(lh, "notice", 'info', '0', {"msg":obj.msg}, actionobj, (err,obj,action)=> {
-                        // if (obj != null) {
-                        //          this.publisher.publish("DiscoveryEvent", "Notice:Detected", lh, obj);
-                        // }
-                      });
-                    });
-                });
+                    if(alarm["p.dest.ip"] && alarm["p.dest.ip"] != "0.0.0.0") {
+                        await (am2.enrichDestInfo(alarm))
+                    }
 
+                    await (am2.enrichDeviceInfo(alarm))
+                    await (am2.checkAndSaveAsync(alarm))
+                })()
             } else {
 //              log.info("Notice:Drop> Notice type " + obj.note + " is ignored");
             }

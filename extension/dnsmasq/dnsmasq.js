@@ -22,13 +22,20 @@ let userID = f.getUserID();
 let Promise = require('bluebird');
 let fs = Promise.promisifyAll(require("fs"))
 
-let dnsFilterDir = f.getUserConfigFolder() + "/dns";
+const FILTER_DIR = f.getUserConfigFolder() + "/dns";
 
-let adblockFilterFile = dnsFilterDir + "/adblock_filter.conf";
-let adblockTmpFilterFile = dnsFilterDir + "/adblock_filter.conf.tmp";
+const FILTER_FILE = {
+  adblock: FILTER_DIR + "/adblock_filter.conf",
+  adblockTmp: FILTER_DIR + "/adblock_filter.conf.tmp",
 
-let policyFilterFile = dnsFilterDir + "/policy_filter.conf";
-let familyFilterFile = dnsFilterDir + "/family_filter.conf";
+  family: FILTER_DIR + "/family_filter.conf",
+  familyTmp: FILTER_DIR + "/family_filter.conf.tmp",
+
+  policy: FILTER_DIR + "/policy_filter.conf"
+}
+
+let policyFilterFile = FILTER_DIR + "/policy_filter.conf";
+let familyFilterFile = FILTER_DIR + "/family_filter.conf";
 
 let SysManager = require('../../net2/SysManager');
 let sysManager = new SysManager();
@@ -73,10 +80,31 @@ module.exports = class DNSMASQ {
       this.minReloadTime = new Date() / 1000;
       this.deleteInProgress = false;
       this.shouldStart = false;
-      this.state = undefined;
-      this.reloadCount = 0;
-      this.nextState = undefined;
-      this.nextReloadAdblockFilter = [];
+
+      this.hashTypes = {
+        adblock: 'ads',
+        family: 'family'
+      };
+
+      this.state = {
+        adblock: undefined,
+        family: undefined
+      };
+
+      this.nextState = {
+        adblock: undefined,
+        family: undefined
+      };
+
+      this.reloadCount = {
+        adblock: 0,
+        family: 0
+      };
+
+      this.nextReloadFilter = {
+        adblock: [],
+        family: []
+      }
 
       process.on('exit', () => {
         this.shouldStart = false;
@@ -150,7 +178,7 @@ module.exports = class DNSMASQ {
     config += "\n";
 
     if (this.oldResolvConf === config) {
-      log.info("In updateResolvConf(), no update, skip");
+      //log.info("In updateResolvConf(), no update, skip");
     } else {
       log.info("In updateResolvConf(), nameserver entries: ", entries, {});
       fs.writeFileSync(dnsmasqResolvFile, config);
@@ -162,20 +190,23 @@ module.exports = class DNSMASQ {
     setTimeout(this.updateResolvConf.bind(this), 20000);
   }
 
-  updateAdblockFilter(force, callback) {
+  updateFilter(type, force, callback) {
     callback = callback || function() {}
 
-    this.updateAdblockTmpFilter(force, (err, result) => {
-      if(err) {
+    this._updateTmpFilter(type, force, (err, result) => {
+      if (err) {
         callback(err);
         return;
       }
 
-      if(result) {
+      const filter = FILTER_FILE[type];
+      const filterTmp = FILTER_FILE[type + 'Tmp'];
+
+      if (result) {
         // need update
-        log.debug("Adblock filter file is ", adblockFilterFile);
-        log.debug("Adblock tmp filter file is ", adblockTmpFilterFile);
-        fs.rename(adblockTmpFilterFile, adblockFilterFile, callback);
+        log.debug(`${type} filter file is `, filter);
+        log.debug(`${type} tmp filter file is `, filterTmp);
+        fs.rename(filterTmp, filter, callback);
       } else {
         // no need to update
         callback(null);
@@ -183,63 +214,65 @@ module.exports = class DNSMASQ {
     });
   }
 
-  _setTimeoutForNextReload(oldNextState, curNextState) {
+  _scheduleNextReload(type, oldNextState, curNextState) {
     if (oldNextState === curNextState) {
       // no need immediate reload when next state not changed during reloading
-      this.nextReloadAdblockFilter.forEach(t => clearTimeout(t));
-      this.nextReloadAdblockFilter.length = 0;
-      log.info(`schedule next reload in ${RELOAD_INTERVAL/1000}s`);
-      this.nextReloadAdblockFilter.push(setTimeout(this._reloadAdblockFilter.bind(this), RELOAD_INTERVAL));
+      this.nextReloadFilter[type].forEach(t => clearTimeout(t));
+      this.nextReloadFilter[type].length = 0;
+      log.info(`schedule next reload for ${type} in ${RELOAD_INTERVAL/1000}s`);
+      this.nextReloadFilter[type].push(setTimeout(this._reloadFilter.bind(this), RELOAD_INTERVAL, type));
     } else {
-      log.warn(`next state changed from ${oldNextState} to ${curNextState} during reload, will reload again immediately`);
-      setImmediate(this._reloadAdblockFilter.bind(this));
+      log.warn(`${type}'s next state changed from ${oldNextState} to ${curNextState} during reload, will reload again immediately`);
+      setImmediate(this._reloadFilter.bind(this), type);
     }
   }
 
-  _reloadAdblockFilter() {
-    let preState = this.state;
-    let nextState = this.nextState;
-    this.state = nextState;
+  _reloadFilter(type) {
+    let preState = this.state[type];
+    let nextState = this.nextState[type];
+    this.state[type] = nextState;
 
-    log.info(`in reloadAdblockFilter(): preState: ${preState}, nextState: ${this.state}, this.reloadCount: ${this.reloadCount++}`);
+    log.info(`in reloadFilter(${type}): preState: ${preState}, nextState: ${this.state[type]}, this.reloadCount: ${this.reloadCount[type]++}`);
 
     if (nextState === true) {
-      log.info("Start to update Adblock filters.");
-      this.updateAdblockFilter(true, (err) => {
+      log.info(`Start to update ${type} filters.`);
+      this.updateFilter(type, true, (err) => {
         if (err) {
-          log.error("Update Adblock filters Failed!", err, {});
+          log.error(`Update ${type} filters Failed!`, err, {});
         } else {
-          log.info("Update Adblock filters successful.");
+          log.info(`Update ${type} filters successful.`);
         }
 
-        this.reload().finally(() => this._setTimeoutForNextReload(nextState, this.nextState));
+        this.reload().finally(() => this._scheduleNextReload(type, nextState, this.nextState[type]));
       });
     } else {
       if (preState === false && nextState === false) {
         // disabled, no need do anything
-        this._setTimeoutForNextReload(nextState, this.nextState);
+        this._scheduleNextReload(type, nextState, this.nextState[type]);
         return;
       }
 
-      log.info("Start to clean up Adblock filters.");
-      this.cleanUpAdblockFilter()
-        .catch(err => log.error('Error when clean up adblock filters', err, {}))
-        .then(() => this.reload().finally(() => this._setTimeoutForNextReload(nextState, this.nextState)));
+      log.info(`Start to clean up ${type} filters.`);
+      this.cleanUpFilter(type)
+        .catch(err => log.error(`Error when clean up ${type} filters`, err, {}))
+        .then(() => this.reload().finally(() => this._scheduleNextReload(type, nextState, this.nextState[type])));
     }
   }
 
-  controlAdblockFilter(state) {
-    this.nextState = state;
-    log.info(`nextState is: ${this.nextState}`);
-    if (this.state !== undefined) {
+  controlFilter(type, state) {
+    this.nextState[type] = state;
+    log.info(`${type} nextState is: ${this.nextState[type]}`);
+    if (this.state[type] !== undefined) {
       // already timer running, clear existing ones before trigger next round immediately
-      this.nextReloadAdblockFilter.forEach(t => clearTimeout(t));
-      this.nextReloadAdblockFilter.length = 0;
+      this.nextReloadFilter[type].forEach(t => clearTimeout(t));
+      this.nextReloadFilter[type].length = 0;
     }
-    setImmediate(this._reloadAdblockFilter.bind(this));
+    setImmediate(this._reloadFilter.bind(this), type);
   }
 
-  cleanUpFilter(file) {
+  cleanUpFilter(type) {
+    const file = FILTER_FILE[type];
+
     log.info("Clean up filter file:", file);
     return fs.unlinkAsync(file)
       .catch(err => {
@@ -252,18 +285,6 @@ module.exports = class DNSMASQ {
           }
         }
       });
-  }
-
-  cleanUpAdblockFilter() {
-    return this.cleanUpFilter(adblockFilterFile);
-  }
-
-  cleanUpFamilyFilter() {
-    return this.cleanUpFilter(familyFilterFile);
-  }
-
-  cleanUpPolicyFilter() {
-    return this.cleanUpFilter(policyFilterFile);
   }
 
   addPolicyFilterEntry(domain) {
@@ -346,53 +367,56 @@ module.exports = class DNSMASQ {
 
   reload() {
     log.info("Dnsmasq reloading.");
-    return new Promise(((resolve, reject) => {
-      this.start(false, (err) => {
+    let self = this
+    return new Promise((resolve, reject) => {
+      self.start(false, (err) => {
         if (err) {
           reject(err);
         }
         resolve();
       });
-    }).bind(this))
-      .then(() => {
-        log.info("Dnsmasq reload complete.");
-      }).catch((err) => {
-        log.error("Got error when reloading dnsmasq:", err, {})
-      });
+    }).then(() => {
+      log.info("Dnsmasq reload complete.");
+    }).catch((err) => {
+      log.error("Got error when reloading dnsmasq:", err, {})
+    });
   }
 
-  updateAdblockTmpFilter(force, callback) {
+  _updateTmpFilter(type, force, callback) {
     callback = callback || function() {}
 
     let mkdirp = require('mkdirp');
-    mkdirp(dnsFilterDir, (err) => {
+    mkdirp(FILTER_DIR, (err) => {
 
       if(err) {
         callback(err);
         return;
       }
 
+      const filterFile = FILTER_FILE[type];
+      const filterFileTmp = FILTER_FILE[type + 'Tmp'];
+
       // Check if the filter file is older enough that needs to refresh
-      fs.stat(adblockFilterFile, (err, stats) => {
+      fs.stat(filterFile, (err, stats) => {
         if (!err) { // already exists
-          if(force == true ||
+          if(force === true ||
              (new Date() - stats.mtime) > FILTER_EXPIRE_TIME) {
 
-            fs.stat(adblockTmpFilterFile, (err, stats) => {
+            fs.stat(filterFileTmp, (err, stats) => {
               if(!err) {
-                fs.unlinkSync(adblockTmpFilterFile);
+                fs.unlinkSync(filterFileTmp);
               } else if(err.code !== "ENOENT") {
                 // unexpected err
                 callback(err);
                 return;
               }
 
-              this.loadFilterFromBone((err, hashes) => {
+              this._loadFilterFromBone(type, (err, hashes) => {
                 if(err) {
                   callback(err);
                   return;
                 }
-                this.writeHashFilterFile(hashes, adblockTmpFilterFile, (err) => {
+                this._writeHashFilterFile(hashes, filterFileTmp, (err) => {
                   if(err) {
                     callback(err);
                   } else {
@@ -406,12 +430,12 @@ module.exports = class DNSMASQ {
             callback(null, 0);
           }
         } else { // no such file, need to crate one
-          this.loadFilterFromBone((err, hashes) => {
+          this._loadFilterFromBone(type, (err, hashes) => {
             if(err) {
               callback(err);
               return;
             }
-            this.writeHashFilterFile(hashes, adblockTmpFilterFile, (err) => {
+            this._writeHashFilterFile(hashes, filterFileTmp, (err) => {
               if(err) {
                 callback(err);
               } else {
@@ -424,10 +448,10 @@ module.exports = class DNSMASQ {
     });
   }
 
-  loadFilterFromBone(callback) {
+  _loadFilterFromBone(type, callback) {
     callback = callback || function() {}
 
-    const name = f.isProduction() ? 'ads' : 'ads-dev';
+    const name = f.isProduction() ? this.hashTypes[type] : this.hashTypes[type] + '-dev';
 
     log.info(`Load data set from bone: ${name}`);
 
@@ -552,7 +576,7 @@ module.exports = class DNSMASQ {
     });
   }
 
-  writeHashFilterFile(hashes, file, callback) {
+  _writeHashFilterFile(hashes, file, callback) {
     callback = callback || function() {}
 
 
