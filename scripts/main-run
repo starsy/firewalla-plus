@@ -20,6 +20,8 @@
 #
 #
 
+sudo service rsyslog start
+
 logger "FIREWALLA.MAIN-RUN.START"
 
 : ${FIREWALLA_HOME:=/home/pi/firewalla}
