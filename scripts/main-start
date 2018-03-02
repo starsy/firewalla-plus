@@ -113,6 +113,7 @@ function record_latest_production_branch() {
 
 logger "FIREWALLA: Main-Run Start Update Modules"
 function update_node_modules {
+  return;
   FW_NODE_MODULES_PATH=~/.node_modules
   if [[ "x$FIREWALLA_NODE_MODULES_MODE" == "xGIT" ]]; then
       sudo rm -f ~/.node_modules/.git/*.lock
