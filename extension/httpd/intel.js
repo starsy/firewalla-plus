@@ -1,18 +1,23 @@
 const util = require('util');
 const Promise = require('bluebird');
-const redis = require("redis");
+const Redis = require("Redis");
 
 const log = require("../../net2/logger")('intel');
 const bone = require('../../lib/Bone');
 const flowUtil = require('../../net2/FlowUtil.js');
 
-const rclient = redis.createClient();
-Promise.promisifyAll(redis.RedisClient.prototype);
+const redis = Redis.createClient();
+Promise.promisifyAll(Redis.RedisClient.prototype);
 
 class Intel {
+  
+  constructor(types) {
+    this.types = types;
+  }
+  
   async jwt() {
     try {
-      return await rclient.getAsync("sys:bone:jwt");
+      return await redis.getAsync("sys:bone:jwt");
     } catch (err) {
       // null
     }
@@ -20,10 +25,24 @@ class Intel {
 
   async check(dn) {
     try {
+      let result = await this.checkIntelLocally(dn);
+      log.info('local intel result:', util.inspect(result));
+
+
       return await this.checkIntelFromCloud(dn);
     } catch (err) {
       log.error("Error:", err, {});
     }
+  }
+  
+  async checkIntelLocally(dn) {
+    return Promise.map(types, async type => {
+      let key = `dns:hashset:${type}`;
+
+      let hds = flowUtil.hashHost(dn);
+
+      return Promise.map(hds, async hd => ({type, isMember: await redis.sismemberAsync(key, hd)}));
+    });
   }
 
   async checkIntelFromCloud(dn) {
