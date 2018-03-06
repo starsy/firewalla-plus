@@ -180,6 +180,7 @@ module.exports = class DNSMASQ {
     let entries = nameservers.filter(x => x && !(x.trim().match(/^127\.|^::1|^localhost/)))
                              .map((nameserver) => "nameserver " + nameserver);
 
+    entries.unshift(`nameserver ${DEFAULT_DNS_SERVER}`);
 
     let config = entries.join('\n');
     config += "\n";
