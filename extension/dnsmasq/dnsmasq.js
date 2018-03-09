@@ -63,7 +63,7 @@ let dnsmasqPIDFile = f.getRuntimeInfoFolder() + "/dnsmasq.pid";
 let configFile = __dirname + "/dnsmasq.conf";
 let altConfigFile = __dirname + "/dnsmasq-alt.conf";
 
-let resolveFile = f.getRuntimeInfoFolder() + "/dnsmasq.resolv.conf";
+let resolvFile = f.getRuntimeInfoFolder() + "/dnsmasq.resolv.conf";
 
 let defaultNameServers = {};
 let upstreamDNS = null;
