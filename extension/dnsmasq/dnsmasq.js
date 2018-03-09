@@ -676,7 +676,7 @@ module.exports = class DNSMASQ {
     callback = callback || function() {}
 
     // use restart to ensure the latest configuration is loaded
-    let cmd = `sudo ${dnsmasqBinary}.${f.getPlatform()} -k -x ${dnsmasqPIDFile} -u ${userID} -C ${configFile} -r ${resolveFile} --local-service`;
+    let cmd = `sudo ${dnsmasqBinary}.${f.getPlatform()} -k -x ${dnsmasqPIDFile} -u ${userID} -C ${configFile} -r ${resolvFile} --local-service`;
     
     if(upstreamDNS) {
       log.info("upstream server", upstreamDNS, "is specified");
@@ -713,7 +713,7 @@ module.exports = class DNSMASQ {
         cmd = util.format("%s --dhcp-option=6,%s", cmd, dns);
       });
       
-      let cmdAlt = `sudo ${dnsmasqBinary}.${f.getPlatform()} -k -x ${dnsmasqPIDFile} -u ${userID} -C ${altConfigFile} -r ${resolveFile} --local-service`;
+      let cmdAlt = `sudo ${dnsmasqBinary}.${f.getPlatform()} -k -x ${dnsmasqPIDFile} -u ${userID} -C ${altConfigFile} -r ${resolvFile} --local-service`;
       let gw = sysManager.myGateway();
       let mask = sysManager.myIpMask();
       
