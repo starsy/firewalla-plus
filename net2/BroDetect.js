@@ -1523,7 +1523,9 @@ module.exports = class {
 
                     await (am2.enrichDeviceInfo(alarm))
                     await (am2.checkAndSaveAsync(alarm))
-                })()
+                })().catch((err) => {
+                    log.error("Failed to generate alarm:", err, {})
+                })
             } else {
 //              log.info("Notice:Drop> Notice type " + obj.note + " is ignored");
             }

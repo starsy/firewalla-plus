@@ -44,9 +44,6 @@ let policyIDKey = "policy:id";
 let policyPrefix = "policy:";
 let initID = 1;
 
-let DNSMASQ = require('../extension/dnsmasq/dnsmasq.js');
-let dnsmasq = new DNSMASQ();
-
 let sem = require('../sensor/SensorEventManager.js').getInstance();
 
 let extend = require('util')._extend;
@@ -87,57 +84,72 @@ class PolicyManager2 {
       scheduler.unenforceCallback = (policy) => {
         return this._unenforce(policy)
       }
-
-      this.queue = new Queue('policy')
-
-      this.queue.removeOnFailure = true
-      this.queue.removeOnSuccess = true
-
-      this.queue.on('error', (err) => {
-        log.error("Queue got err:", err)
-      })
-
-      this.queue.on('failed', (job, err) => {
-        log.error(`Job ${job.id} ${job.name} failed with error ${err.message}`);
-      });
-
-      this.queue.process((job, done) => {
-        const event = job.data
-        const policy = this.jsonToPolicy(event.policy)
-        const action = event.action
-
-        log.info("Processing", policy.pid, action, {})
-        
-        switch(action) {
-        case "enforce": {
-          return async(() => {
-            await(this.enforce(policy))
-          })().catch((err) => {
-            log.error("enforce policy failed:" + err)
-          }).finally(() => {
-            done()
-          })
-          break
-        }
-        case "unenforce": {
-          return async(() => {
-            await(this.unenforce(policy))
-            done()
-          })().catch((err) => {
-            log.error("unenforce policy failed:" + err)
-          }).finally(() => {
-            done()
-          })
-          break
-        }
-        default:
-          log.error("unrecoganized policy enforcement action:" + action)
-          done()
-          break
-        }
-      })
+      
     }
     return instance;
+  }
+
+  setupPolicyQueue() {
+    this.queue = new Queue('policy')
+
+    this.queue.removeOnFailure = true
+    this.queue.removeOnSuccess = true
+
+    this.queue.on('error', (err) => {
+      log.error("Queue got err:", err)
+    })
+
+    this.queue.on('failed', (job, err) => {
+      log.error(`Job ${job.id} ${job.name} failed with error ${err.message}`);
+    });
+
+    this.queue.destroy(() => {
+      log.info("policy queue is cleaned up")
+    })
+
+    this.queue.process((job, done) => {
+      const event = job.data
+      const policy = this.jsonToPolicy(event.policy)
+      const action = event.action
+
+      log.info("START ENFORCING POLICY", policy.pid, action, {})
+      
+      switch(action) {
+      case "enforce": {
+        return async(() => {
+          await(this.enforce(policy))
+        })().catch((err) => {
+          log.error("enforce policy failed:" + err)
+        }).finally(() => {
+          log.info("COMPLETE ENFORCING POLICY", policy.pid, action, {})
+          done()
+        })
+        break
+      }
+      case "unenforce": {
+        return async(() => {
+          await(this.unenforce(policy))
+        })().catch((err) => {
+          log.error("unenforce policy failed:" + err)
+        }).finally(() => {
+          log.info("COMPLETE ENFORCING POLICY", policy.pid, action, {})
+          done()
+        })
+        break
+      }
+      default:
+        log.error("unrecoganized policy enforcement action:" + action)
+        done()
+        break
+      }
+    })
+
+    setInterval(() => {
+      this.queue.checkHealth((error, counts) => {
+        log.info("Policy queue status:", counts, {})
+      })
+      
+    }, 60 * 1000)
   }
 
   registerPolicyEnforcementListener() { // need to ensure it's serialized
@@ -224,6 +236,10 @@ class PolicyManager2 {
     callback(null, this.jsonToPolicy(json));
   }
 
+  createPolicy(json) {
+    return this.jsonToPolicy(json)
+  }
+
   updatePolicyAsync(policy) {
     const pid = policy.pid
     if(pid) {
@@ -301,7 +317,14 @@ class PolicyManager2 {
         let policies = await(this.getSamePolicies(policy))
         if (policies && policies.length > 0) {
           log.info("policy with type:" + policy.type + ",target:" + policy.target + " already existed")
-          callback(null, policies[0], true)
+          const samePolicy = policies[0]
+          if(samePolicy.disabled && samePolicy.disabled == "1") {
+            // there is a policy in place and disabled, just need to enable it
+            await (this.enablePolicy(samePolicy))
+            callback(null, samePolicy, "duplicated_and_updated")
+          } else {
+            callback(null, samePolicy, "duplicated")
+          }
         } else {
           this.savePolicy(policy, callback);
         }
@@ -310,6 +333,18 @@ class PolicyManager2 {
         callback(err)
       }
     })()
+  }
+
+  checkAndSaveAsync(policy) {
+    return new Promise((resolve, reject) => {
+      this.checkAndSave(policy, (err, resultPolicy) => {
+        if(err) {
+          reject(err)
+        } else {
+          resolve(resultPolicy)
+        }
+      })
+    })
   }
 
   policyExists(policyID) {
@@ -347,7 +382,9 @@ class PolicyManager2 {
     let pm2 = this
     return async(() => {
       return new Promise(function (resolve, reject) {
-        pm2.loadActivePolicys(1000, (err, policies)=>{
+        pm2.loadActivePolicys(1000, {
+          includingDisabled: true
+        }, (err, policies)=>{
           if (err) {
             log.error("failed to load active policies:" + err)
             reject(err)
@@ -463,7 +500,7 @@ class PolicyManager2 {
         }
         
         let rr = results.map((r) => {
-          if(r.scope && r.scope.constructor.name === 'String') {
+          if(r && r.scope && r.scope.constructor.name === 'String') {
             try {
               r.scope = JSON.parse(r.scope)
             } catch(err) {
@@ -520,6 +557,7 @@ class PolicyManager2 {
   }
 
   loadActivePolicysAsync(number) {
+    number = number || 1000 // default 1000
     return new Promise((resolve, reject) => {
       this.loadActivePolicys(number, (err, policies) => {
         if(err) {
@@ -534,14 +572,15 @@ class PolicyManager2 {
   // FIXME: top 1000 only by default
   // we may need to limit number of policy rules created by user
   loadActivePolicys(number, options, callback) {
-    if(typeof options === 'function') {
-      callback = options
-      options = {}
-    }
 
     if(typeof(number) == 'function') {
       callback = number;
       number = 1000; // by default load last 1000 policy rules, for self-protection
+      options = {}
+    }
+
+    if(typeof options === 'function') {
+      callback = options
       options = {}
     }
 
@@ -574,7 +613,8 @@ class PolicyManager2 {
               if(this.queue) {
                 const job = this.queue.createJob({
                   policy: rule,
-                  action: "enforce"
+                  action: "enforce",
+                  booting: true
                 })
                 job.save(function() {})
               }
@@ -787,7 +827,8 @@ class PolicyManager2 {
             await (Block.advancedBlock(policy.pid, scope, []))
             return domainBlock.blockDomain(policy.target, {
               exactMatch: policy.domainExactMatch, 
-              blockSet: Block.getDstSet(policy.pid)
+              blockSet: Block.getDstSet(policy.pid),
+              no_dnsmasq_entry: true
             })
           } else {
             return domainBlock.blockDomain(policy.target, {exactMatch: policy.domainExactMatch})
@@ -807,7 +848,10 @@ class PolicyManager2 {
         return async(() => {
           if(scope) {
             await (Block.advancedBlock(policy.pid, scope, []))
-            return categoryBlock.blockCategory(policy.target, {blockSet: Block.getDstSet(policy.pid)})
+            return categoryBlock.blockCategory(policy.target, {
+              blockSet: Block.getDstSet(policy.pid),
+              no_dnsmasq_entry: true
+            })
           } else {
             return categoryBlock.blockCategory(policy.target)
           }
@@ -897,7 +941,8 @@ class PolicyManager2 {
             await (Block.advancedUnblock(policy.pid, scope, []))
             return domainBlock.unblockDomain(policy.target, {
               exactMatch: policy.domainExactMatch, 
-              blockSet: Block.getDstSet(policy.pid)
+              blockSet: Block.getDstSet(policy.pid),
+              no_dnsmasq_entry: true
             })
           } else {
             return domainBlock.unblockDomain(policy.target, {exactMatch: policy.domainExactMatch})
@@ -919,7 +964,8 @@ class PolicyManager2 {
             await (Block.advancedUnblock(policy.pid, scope, []))
             return categoryBlock.unblockCategory(policy.target, {
               blockSet: Block.getDstSet(policy.pid),
-              ignoreUnapplyBlock: true
+              ignoreUnapplyBlock: true,
+              no_dnsmasq_entry: true
             })
           } else {
             return categoryBlock.unblockCategory(policy.target)
@@ -950,6 +996,23 @@ class PolicyManager2 {
 
       callback(null, false)
     })
+  }
+
+
+  // utility functions
+  findPolicy(target, type) {
+    return async(() => {
+      let rules = await (this.loadActivePolicysAsync())
+
+      for (const index in rules) {
+        const rule = rules[index]
+        if(rule.target === target && type === rule.type) {
+          return rule 
+        }
+      }
+
+      return null
+    })()
   }
 }
 
