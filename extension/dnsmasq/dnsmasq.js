@@ -752,11 +752,11 @@ module.exports = class DNSMASQ {
 
     childProcess.execSync("echo '"+prefix +" ' > /home/pi/firewalla/extension/dnsmasq/dnsmasq.sh");
 
-    childProcess.execSync("echo '"+cmd +" ' >> /home/pi/firewalla/extension/dnsmasq/dnsmasq.sh");
+    childProcess.execSync("echo '"+cmd +" & ' >> /home/pi/firewalla/extension/dnsmasq/dnsmasq.sh");
 
     if (cmdAlt) {
       log.info("Second dnsmasq command:", cmdAlt);
-      childProcess.execSync("echo '"+ cmdAlt +" ' >> /home/pi/firewalla/extension/dnsmasq/dnsmasq.sh");
+      childProcess.execSync("echo '"+ cmdAlt +" & ' >> /home/pi/firewalla/extension/dnsmasq/dnsmasq.sh");
     }
 
     childProcess.execSync("echo '"+ suffix1 +" ' >> /home/pi/firewalla/extension/dnsmasq/dnsmasq.sh");
