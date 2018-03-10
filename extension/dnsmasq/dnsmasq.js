@@ -700,6 +700,7 @@ module.exports = class DNSMASQ {
   onSpoofChanged() {
     if (dhcpFeature) {
       this.writeHostsFile().then(() => {
+        log.info("set need reload to be true");
         this.needReload = true;
       });
     }
@@ -716,7 +717,7 @@ module.exports = class DNSMASQ {
     ).then(spoofedHosts => {
       let hosts = spoofedHosts.map(host => {
         let line = null;
-        if (host.spoofing === false) {
+        if (host.spoofing === 'false') {
           line = `${host.mac},set:alt,${host.bname},ignore`;
         } else {
           line = `${host.mac},set:spoof,${host.bname},2m`;
@@ -726,7 +727,7 @@ module.exports = class DNSMASQ {
 
       let altHosts = spoofedHosts.map(host => {
         let line = null;
-        if (host.spoofing === false) {
+        if (host.spoofing === 'false') {
           line = `${host.mac},set:alt,${host.bname},2m`;
         } else {
           line = `${host.mac},set:spoof,${host.bname},ignore`;
