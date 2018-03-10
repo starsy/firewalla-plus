@@ -75,8 +75,6 @@ let resolvFile = f.getRuntimeInfoFolder() + "/dnsmasq.resolv.conf";
 let defaultNameServers = {};
 let upstreamDNS = null;
 
-let dhcpFeature = false;
-
 let FILTER_EXPIRE_TIME = 86400 * 1000;
 
 const BLACK_HOLE_IP = "198.51.100.99"
@@ -95,6 +93,7 @@ module.exports = class DNSMASQ {
 
       instance = this;
 
+      this.dhcpMode = false;
       this.minReloadTime = new Date() / 1000;
       this.deleteInProgress = false;
       this.shouldStart = false;
@@ -697,7 +696,7 @@ module.exports = class DNSMASQ {
   }
 
   onSpoofChanged() {
-    if (dhcpFeature) {
+    if (this.dhcpMode) {
       this.writeHostsFile().then(() => {
         log.info("Spoof status changed, set need reload to be true");
         this.needReload = true;
@@ -742,11 +741,11 @@ module.exports = class DNSMASQ {
     let cmd = null;
     let cmdAlt = null;
 
-    if(dhcpFeature && (!sysManager.secondaryIpnet ||
+    if(this.dhcpMode && (!sysManager.secondaryIpnet ||
       !sysManager.secondaryMask)) {
       log.warn("DHCPFeature is enabled but secondary network interface is not setup");
     }
-    if(dhcpFeature &&
+    if(this.dhcpMode &&
        sysManager.secondaryIpnet &&
        sysManager.secondaryMask) {
       log.info("DHCP feature is enabled");
@@ -804,8 +803,6 @@ module.exports = class DNSMASQ {
       this.restartDnsmasq();
       callback(null)
     }
-
-
   }
 
   restartDnsmasq() {
@@ -1013,7 +1010,7 @@ module.exports = class DNSMASQ {
   }
 
   enableDHCP() {
-    dhcpFeature = true;
+    this.dhcpMode = true;
     return new Promise((resolve, reject) => {
       this.start(false, (err) => {
         log.info("Started DHCP")
@@ -1029,7 +1026,7 @@ module.exports = class DNSMASQ {
   }
 
   disableDHCP() {
-    dhcpFeature = false;
+    this.dhcpMode = false;
     return new Promise((resolve, reject) => {
       this.start(false, (err) => {
         if(err) {
@@ -1043,12 +1040,8 @@ module.exports = class DNSMASQ {
     });
   }
 
-  dhcp() {
-    return dhcpFeature;
-  }
-
-  setDHCPFlag(flag) {
-    dhcpFeature = flag;
+  setDhcpMode(isEnabled) {
+    this.dhcpMode = isEnabled;
   }
 
   verifyDNSConnectivity() {
