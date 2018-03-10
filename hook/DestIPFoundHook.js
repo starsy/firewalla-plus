@@ -237,12 +237,12 @@ class DestIPFoundHook extends Hook {
         let args = [IP_SET_TO_BE_PROCESSED];
 
         const ipsWithIntel = result.filter(o => o.intel);
-        log.info("IP has intel: ", util.inspect(ipsWithIntel, {depth: 10}));
+        log.debug("IP has intel: ", util.inspect(ipsWithIntel, {depth: 10}));
 
         if (ipsWithIntel.length > 0) {
           args.push(...ipsWithIntel.map(o => o.ip));
           //args.push.apply(args, ips);
-          log.info("Args: ", args, {});
+          log.debug("Args: ", args, {});
           await (rclient.zremAsync(args));
         }
 
@@ -254,7 +254,7 @@ class DestIPFoundHook extends Hook {
 
         // add failed ip back into discover queue
         const ipsFail = result.filter(o => !o.intel);
-        log.info("Failed IP list:", ipsFail, {});
+        log.debug("Failed IP list:", ipsFail, {});
         ipsFail.forEach(o => this.appendNewIP(o.ip));
 
       } else {
