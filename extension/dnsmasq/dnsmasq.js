@@ -739,17 +739,17 @@ module.exports = class DNSMASQ {
           log.info("static host:", util.inspect(h));
           return h;
         }).filter(x => x);
-        
+
         return hosts.concat(_hosts);
       }).then(hosts => {
         let hostsList = hosts.map(h => (h.spoofing === 'false') ?
-          `${h.mac},set:unmonitor,ignore` :
-          `${h.mac},set:monitor,24h`
+          `${h.mac},set:unmonitor,${h.ip ? h.ip + ',' : ''}ignore` :
+          `${h.mac},set:monitor,${h.ip ? h.ip + ',' : ''}24h`
         );
 
         let altHostsList = hosts.map(h => (h.spoofing === 'false') ?
-          `${h.mac},set:unmonitor,24h` :
-          `${h.mac},set:monitor,ignore`
+          `${h.mac},set:unmonitor,${h.ip ? h.ip + ',' : ''}24h` :
+          `${h.mac},set:monitor,${h.ip ? h.ip + ',' : ''}ignore`
         );
 
         let _hosts = hostsList.join("\n") + "\n";
