@@ -888,6 +888,7 @@ module.exports = class DNSMASQ {
 
     try {
       await execAsync(cmd);
+      log.info("Dnsmasq restart successful");
     } catch (err) {
       log.error("DNSMASQ:START:Error", "Failed to restart dnsmasq:", err, {});
     }
