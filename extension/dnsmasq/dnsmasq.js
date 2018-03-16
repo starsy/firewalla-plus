@@ -193,9 +193,9 @@ module.exports = class DNSMASQ {
 
   async updateResolvConf() {
     let nameservers = this.getAllDefaultNameServers()
-      if (!nameservers || nameservers.length === 0) {
-        nameservers = sysManager.myDNS();
-      }
+    if (!nameservers || nameservers.length === 0) {
+      nameservers = sysManager.myDNS();
+    }
 
     if (!nameservers || nameservers.length === 0) {
       nameservers = [DEFAULT_DNS_SERVER];  // use google dns by default, should not reach this code
@@ -658,7 +658,7 @@ module.exports = class DNSMASQ {
     let cmd = util.format("ps aux | grep %s | grep -v grep", dnsmasqBinary);
     log.info("Command to check dnsmasq: ", cmd);
 
-    await execAsync(cmd);
+    let {stdout, stderr} = await execAsync(cmd);
     return stdout !== "";
   }
 
