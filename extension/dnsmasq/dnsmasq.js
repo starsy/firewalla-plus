@@ -282,18 +282,19 @@ module.exports = class DNSMASQ {
     setImmediate(this._reloadFilter.bind(this), type);
   }
 
-  cleanUpFilter(type) {
+  async cleanUpFilter(type) {
     const file = FILTER_FILE[type];
-
     log.info("Clean up filter file:", file);
-    return fs.unlinkAsync(file).catch(err => {
+    try {
+      await fs.unlinkAsync(file);
+    } catch (err) {
       if (err.code === 'ENOENT') {
         // ignore
         log.info(`Filter file '${file}' not exist, ignore`);
       } else {
         log.error(`Failed to remove filter file: '${file}'`, err, {})
       }
-    });
+    }
   }
 
   async addPolicyFilterEntry(domain, options) {
@@ -365,7 +366,6 @@ module.exports = class DNSMASQ {
         list.push.apply(list, l)
       }
     }
-
     return list
   }
 
