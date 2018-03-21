@@ -29,6 +29,8 @@
 : ${FIREWALLA_HOME:=/home/pi/firewalla}
 MGIT=$(PATH=/home/pi/scripts:$FIREWALLA_HOME/scripts; /usr/bin/which mgit||echo git)
 
+mode=${1:-'normal'}
+
 timeout_check() {
     pid=${1:-$!}
     timeout=${2:-120}
@@ -60,7 +62,6 @@ else
 fi
 /home/pi/firewalla/scripts/firelog -t local -m "FIREWALLA.UPGRADE($mode) Starting Done Check Reset"+`date`
 
-mode=${1:-'normal'}
 
 /home/pi/firewalla/scripts/firelog -t local -m "FIREWALLA.UPGRADE($mode) Starting FIRST "+`date`
 
@@ -127,6 +128,7 @@ echo $branch > /tmp/REPO_BRANCH
 
 if [[ -e "/home/pi/.firewalla/config/.no_auto_upgrade" ]]; then
   /home/pi/firewalla/scripts/firelog -t debug -m "FIREWALLA.UPGRADE NO UPGRADE"
+  echo '======= SKIP UPGRADING BECAUSE OF FLAG /home/pi/.firewalla/config/.no_auto_upgrade ======='
   exit 0
 fi
 

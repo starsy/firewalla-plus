@@ -16,12 +16,9 @@
 
 let log = require('./logger.js')(__filename);
 
-let redis = require('redis');
-let rclient = redis.createClient();
+const rclient = require('../util/redis_manager.js').getRedisClient()
 
 let Promise = require('bluebird');
-Promise.promisifyAll(redis.RedisClient.prototype);
-Promise.promisifyAll(redis.Multi.prototype);
 
 let async = require('asyncawait/async');
 let await = require('asyncawait/await');
@@ -178,8 +175,9 @@ class IntelTool {
         if(subject) {
           let result = this._parseX509Subject(subject);
           if(result) {
-            sslInfo.CN = result.CN;
-            sslInfo.OU = result.OU;
+            sslInfo.CN = result.CN || ""
+            sslInfo.OU = result.OU || ""
+            sslInfo.O = result.O || ""
           }
         }
 
@@ -224,6 +222,9 @@ class IntelTool {
       // let keys = await (rclient.keysAsync(key))
       // FIXME: temporalry disabled keys length check, still insert data even dns entry doesn't exist
 //      if(keys.length > 0) {
+        if (intel && intel.ip) {
+            delete intel.ip;
+        }
         let intelJSON = JSON.stringify(intel);
         await (rclient.hsetAsync(key, "_intel", intelJSON))
         await (rclient.expireAsync(key, expireTime))
