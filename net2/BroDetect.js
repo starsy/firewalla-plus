@@ -38,7 +38,6 @@ const hostManager = new HostManager('cli', 'server');
 const HostTool = require('../net2/HostTool.js')
 const hostTool = new HostTool()
 
-
 const DNSTool = require('../net2/DNSTool.js')
 const dnsTool = new DNSTool()
 

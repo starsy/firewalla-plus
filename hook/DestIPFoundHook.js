@@ -216,11 +216,9 @@ class DestIPFoundHook extends Hook {
     return async(() => {
       let ips = await (rclient.zrangeAsync(IP_SET_TO_BE_PROCESSED, 0, ITEMS_PER_FETCH));
 
-      log.info(`There are ${ips.length} IP Addresses pending for intel analysis, checking...`);
-
       if(ips.length > 0) {
-
         //let result = Promise.map(ips, ip => ({ip, intel: await(this.processIP(ip))}), {concurrency: 5} );
+        log.debug(`There are ${ips.length} IP Addresses pending for intel analysis, checking...`);
 
         let result = await (Promise.map(ips,
             async (ip => {
@@ -231,17 +229,17 @@ class DestIPFoundHook extends Hook {
 
         await (Promise.all(result.map(o => o.intel)));
 
-        log.info("Result: ", util.inspect(result, {depth: 10}), {});
+        //log.debug("Result: ", util.inspect(result, {depth: 10}), {});
 
         let args = [IP_SET_TO_BE_PROCESSED];
 
         const ipsWithIntel = result.filter(o => o.intel);
-        log.info("IP has intel: ", util.inspect(ipsWithIntel, {depth: 10}));
+        log.debug("IP has intel: ", util.inspect(ipsWithIntel, {depth: 10}));
 
         if (ipsWithIntel.length > 0) {
           args.push(...ipsWithIntel.map(o => o.ip));
           //args.push.apply(args, ips);
-          log.info("Args: ", args, {});
+          log.debug("Args: ", args, {});
           await (rclient.zremAsync(args));
         }
 
@@ -249,11 +247,11 @@ class DestIPFoundHook extends Hook {
         const cached = ipsWithIntel.filter(o => o.intel.cached).length;
         const success = ipsWithIntel.length;
 
-        log.info(`Analyzed ${total} IP Addresses for intels, ${success} successful, ${cached} is cached, ${total - success} failed`);
+        log.debug(`Analyzed ${total} IP Addresses for intels, ${success} successful, ${cached} is cached, ${total - success} failed`);
 
         // add failed ip back into discover queue
         const ipsFail = result.filter(o => !o.intel);
-        log.info("Failed IP list:", ipsFail, {});
+        log.debug("Failed IP list:", ipsFail, {});
         ipsFail.forEach(o => this.appendNewIP(o.ip));
 
       } else {
