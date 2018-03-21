@@ -303,7 +303,6 @@ module.exports = class {
       return
     }
 
-
     this.familyDnsAddr((err, dnsaddrs) => {
       log.info("PolicyManager:Family:IPTABLE", ip, state, dnsaddrs.join(" "));
       if (state === true) {
@@ -331,7 +330,20 @@ module.exports = class {
     dnsmasq.controlFilter('adblock', state);
   }
 
+  upstreamDns(dnsHost, state, callback) {
+    callback = callback || function() {};
 
+    log.info("PolicyManager:UpstreamDns:Dnsmasq", dnsHost, state);
+
+    if (state === true) {
+      dnsmasq.setDefaultNameServers("default", dnsHost);
+      dnsmasq.updateResolvConf().then(() => callback());
+    } else {
+      dnsmasq.unsetDefaultNameServers("default"); // reset dns name servers to null no matter whether iptables dns change is failed or successful
+      dnsmasq.updateResolvConf().then(() => callback());
+    }
+
+  }
 
     hblock(host, state) {
       log.info("PolicyManager:Block:IPTABLE", host.name(), host.o.ipv4Addr, state);
@@ -411,8 +423,9 @@ module.exports = class {
         } else {
           log.info("SciSurf feature is enabled successfully");
           log.info("chinadns:", ss_client.getChinaDNS());
-          dnsmasq.setUpstreamDNS(ss_client.getChinaDNS());
-          log.info("dnsmasq upstream dns is set to", ss_client.getChinaDNS());
+          dnsmasq.setUpstreamDNS(ss_client.getChinaDNS()).then(() => {
+            log.info("dnsmasq upstream dns is set to", ss_client.getChinaDNS());
+          });
         }
       });
     } else {
