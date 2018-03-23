@@ -365,13 +365,13 @@ module.exports = class DNSMASQ {
   }
 
   getAllDefaultNameServers() {
-    let list = []
-    for(let key in defaultNameServers) {
+    let list = [];
+    Object.keys(defaultNameServers).sort().forEach(key => {
       let ips = defaultNameServers[key]
-      if(Array.isArray(ips)) {
-        Array.prototype.push.apply(list, ips)
+      if (Array.isArray(ips)) {
+        Array.prototype.push.apply(list, ips);
       }
-    }
+    });
     return list
   }
 
