@@ -16,8 +16,9 @@ const userID = f.getUserID();
 const childProcess = require('child_process');
 const execAsync = util.promisify(childProcess.exec);
 const Promise = require('bluebird');
-const rclient = require('../../util/redis_manager.js').getRedisClient()
-const fs = Promise.promisifyAll(require("fs"))
+const rclient = require('../../util/redis_manager.js').getRedisClient();
+const fs = Promise.promisifyAll(require("fs"));
+const validator = require('validator');
 
 const FILTER_DIR = f.getUserConfigFolder() + "/dns";
 
@@ -186,7 +187,7 @@ module.exports = class DNSMASQ {
     }
 
     let entries = nameservers.filter(x => x && !(x.trim().match(/^127\.|^::1|^localhost/)))
-      .map((nameserver) => "nameserver " + nameserver);
+      .map(ip => "nameserver " + ip);
 
     entries.unshift(`nameserver ${DEFAULT_DNS_SERVER}`);
 
@@ -197,7 +198,12 @@ module.exports = class DNSMASQ {
       //log.info("In updateResolvConf(), no update, skip");
     } else {
       log.info("In updateResolvConf(), nameserver entries: ", entries, {});
-      fs.writeFileSync(resolvFile, config);
+      try {
+        await fs.writeFileAsync(resolvFile, config);
+      } catch (err) {
+        log.error("Error when updating resolv.conf:", resolveFile, "error msg:", err.message, {});
+        throw err;
+      }
       this.oldResolvConf = config;
     }
 
@@ -341,8 +347,19 @@ module.exports = class DNSMASQ {
     await fs.appendFileAsync(policyFilterFile, data);
   }
 
-  setDefaultNameServers(key, nameservers) {
-    defaultNameServers[key] = nameservers;
+  setDefaultNameServers(key, ips) {
+    const isIP = (ip) => validator.isIPv4(ip) || validator.isIPv6(ip);
+    let _ips;
+    if (Array.isArray(ips)) {
+      _ips = ips.filter(isIP);
+    } else {
+      if (isIP(ips.toString())) {
+        _ips = [ips.toString()];
+      } else {
+        return;
+      }
+    }
+    defaultNameServers[key] = _ips;
   }
 
   unsetDefaultNameServers(key) {
@@ -352,9 +369,9 @@ module.exports = class DNSMASQ {
   getAllDefaultNameServers() {
     let list = []
     for(let key in defaultNameServers) {
-      let l = defaultNameServers[key]
-      if(l.constructor.name === 'Array') {
-        list.push.apply(list, l)
+      let ips = defaultNameServers[key]
+      if(Array.isArray(ips)) {
+        Array.prototype.push.apply(list, ips)
       }
     }
     return list
