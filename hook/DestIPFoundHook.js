@@ -68,6 +68,14 @@ class DestIPFoundHook extends Hook {
     return rclient.zaddAsync(IP_SET_TO_BE_PROCESSED, 0, ip);
   }
 
+  appendNewFlow(ip,fd) {
+    let flow = {
+       ip:ip,
+       fd:fd
+    };
+    return rclient.zaddAsync(IP_SET_TO_BE_PROCESSED, 0, JSON.stringify(flow));
+  }
+
   isFirewalla(host) {
     let patterns = [/\.encipher\.io$/,
       /^encipher\.io$/,
@@ -101,7 +109,6 @@ class DestIPFoundHook extends Hook {
       let hashes = [intel.ip, intel.host].map(
         x => flowUtil.hashHost(x).map(y => y.length > 1 && y[1])
       )
-
       hashes = [].concat.apply([], hashes);
 */
 
@@ -128,6 +135,14 @@ class DestIPFoundHook extends Hook {
 
       if(info.action && info.action.block) {
         intel.action = "block"
+      }
+      
+      if(info.s) {
+        intel.s = info.s;
+      }
+ 
+      if(info.t) {
+        intel.t = info.t;
       }
       //      }
     });
@@ -159,7 +174,25 @@ class DestIPFoundHook extends Hook {
   //   }
   // }
 
-  processIP(ip, options) {
+  processIP(flow, options) {
+    let ip = null;
+    let fd = 'in';
+
+    if (flow) {
+      let parsed = null;
+      try {
+        parsed = JSON.parse(flow);
+        if (parsed.fd) {
+          fd = parsed.fd;
+          ip = parsed.ip;
+        } else {
+          ip = flow;
+          fd = 'in';
+        }
+      } catch(e) {
+        ip = flow;
+      }
+    } 
     options = options || {};
 
     let skipRedisUpdate = options.skipUpdate;
@@ -176,7 +209,7 @@ class DestIPFoundHook extends Hook {
         }
       }
 
-      log.info("Checking intels for IP: " + ip);
+      log.info("Found new IP " + ip + " fd " +fd+ " flow "+flow+", checking intels...");
 
       let sslInfo = await (intelTool.getSSLCertificate(ip));
       let dnsInfo = await (intelTool.getDNS(ip));
@@ -188,7 +221,7 @@ class DestIPFoundHook extends Hook {
 
       // ignore if domain contain firewalla domain
       if(domains.filter(d => this.isFirewalla(d)).length === 0) {
-        cloudIntelInfo = await (intelTool.checkIntelFromCloud(ips, domains));
+        cloudIntelInfo = await (intelTool.checkIntelFromCloud(ips, domains, fd));
       }
 
       // Update intel dns:ip:xxx.xxx.xxx.xxx so that legacy can use it for better performance
@@ -268,6 +301,16 @@ class DestIPFoundHook extends Hook {
     sem.on('DestIPFound', (event) => {
       let ip = event.ip;
 
+      // ignore reserved ip address
+      if(f.isReservedBlockingIP(ip)) {
+        return;
+      }
+
+      let fd = event.fd;
+      if (fd == null) {
+        fd = 'in'
+      }
+
       if(!ip)
         return;
 
@@ -278,7 +321,7 @@ class DestIPFoundHook extends Hook {
         return; // reserved black hole and blue hole...
       }
       
-      this.appendNewIP(ip);
+      this.appendNewFlow(ip,fd);
     });
 
     this.job();
