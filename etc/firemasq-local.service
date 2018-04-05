@@ -3,11 +3,12 @@ Description=Firewalla DNSMASQ Local
 After=network.target
 
 [Service]
-User=pi
+User=root
 Restart=always
 WorkingDirectory=/home/pi/firewalla/
 ExecStartPre=/home/pi/firewalla/extension/dnsmasq/dnsmasq-local-pre.sh
 ExecStart=/home/pi/firewalla/extension/dnsmasq/dnsmasq-local.sh
+ExecReload=/usr/bin/pkill -HUP dnsmasq
 
 [Install]
 WantedBy=multi-user.target
