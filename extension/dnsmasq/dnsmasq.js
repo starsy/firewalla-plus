@@ -763,6 +763,7 @@ module.exports = class DNSMASQ {
   
   async restartDnsmasqDocker() {
     try {
+      log.warn("sudo pkill dnsmasq in docker");
       childProcess.execSync("sudo pkill dnsmasq")
     } catch(err) {
       // do nothing
@@ -783,6 +784,7 @@ module.exports = class DNSMASQ {
 
   async restartDnsmasq() {
     try {
+      log.warn("sudo systemctl restart firemasq");
       await execAsync("sudo systemctl restart firemasq");
       if (!statusCheckTimer) {
         statusCheckTimer = setInterval(() => {
